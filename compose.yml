@@ -3,7 +3,7 @@ services:
   web:
     container_name: dte-web
     build:
-      context: ./
+      context: ./web
       dockerfile: Dockerfile
     environment:
       # URL de la API de Go vista desde el contenedor. Por defecto apunta al

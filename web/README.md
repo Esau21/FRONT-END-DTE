@@ -23,6 +23,8 @@ Es el front-end de la API de Go [`SMPT-DTE`](https://github.com/Esau21/Go-smpt-d
 
 ## Desarrollo
 
+Desde la carpeta `web/`:
+
 ```bash
 npm install
 npm run dev
@@ -76,6 +78,8 @@ La búsqueda y los filtros se traducen en el front a la sintaxis de búsqueda de
 
 ## Docker
 
+Desde la raíz del repositorio (la carpeta que contiene `web/`):
+
 ```bash
 docker compose up -d --build
 ```
@@ -94,17 +98,17 @@ Cada cambio en el código requiere reconstruir la imagen con el mismo comando.
 ## Estructura
 
 ```
+compose.yml                   Contenedor dte-web
 web/
 ├── src/
-│   ├── api.ts        Cliente de la API: tipos, llamadas y mensajes de error
-│   ├── App.tsx       Toda la interfaz: login, bandeja, búsqueda, detalle y DTE
-│   ├── App.css       Estilos de los componentes
-│   ├── index.css     Colores, tipografía y tema oscuro
-│   └── main.tsx      Punto de entrada
-├── vite.config.ts        Servidor de desarrollo y proxy hacia la API
-├── Dockerfile            Compilación con Node y entrega con nginx
-├── nginx.conf.template   Sirve la app y reenvía /api a la API
-└── compose.yml           Contenedor dte-web
+│   ├── api.ts                Cliente de la API: tipos, llamadas y mensajes de error
+│   ├── App.tsx               Toda la interfaz: login, bandeja, búsqueda, detalle y DTE
+│   ├── App.css               Estilos de los componentes
+│   ├── index.css             Colores, tipografía y tema oscuro
+│   └── main.tsx              Punto de entrada
+├── vite.config.ts            Servidor de desarrollo y proxy hacia la API
+├── Dockerfile                Compilación con Node y entrega con nginx
+└── nginx.conf.template       Sirve la app y reenvía /api a la API
 ```
 
 Tecnologías: React 19, TypeScript, Vite, [Phosphor Icons](https://phosphoricons.com) y la fuente Inter.
