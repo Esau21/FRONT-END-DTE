@@ -1,0 +1,19 @@
+services:
+  # Front-end (React + nginx)
+  web:
+    container_name: dte-web
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    environment:
+      # URL de la API de Go vista desde el contenedor. Por defecto apunta al
+      # puerto 8080 de esta máquina, donde publica el contenedor smpt-dte.
+      - API_TARGET=${API_TARGET:-http://host.docker.internal:8080}
+    extra_hosts:
+      # Necesario en Linux; en Docker Desktop ya existe
+      - host.docker.internal:host-gateway
+    ports:
+      # Mismo puerto que el servidor de desarrollo: el backend redirige a
+      # http://localhost:5173/ después del login (AFTER_LOGIN_PATH).
+      - ${WEB_PORT:-5173}:80
+    restart: unless-stopped
