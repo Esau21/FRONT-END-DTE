@@ -5,9 +5,16 @@ const BASE = '/api/v1/mail'
 /** Navegar aquí inicia el login con Google (el backend redirige). */
 export const LOGIN_URL = `${BASE}/auth`
 
+export type Provider = 'gmail' | 'outlook'
+
+/** Dirección que inicia el login con un proveedor (el backend redirige). */
+export const loginUrl = (provider: Provider) => `${BASE}/auth?provider=${provider}`
+
 export interface Me {
   id: string
   email: string
+  /** De dónde viene el correo de esta sesión. */
+  provider?: Provider
 }
 
 export interface MessageSummary {
@@ -16,6 +23,10 @@ export interface MessageSummary {
   from: string
   subject: string
   date: string
+  /** Primeras palabras del correo (solo en la lista). */
+  snippet?: string
+  /** El correo aún no se ha leído en Gmail (solo en la lista). */
+  unread?: boolean
 }
 
 export interface Attachment {
@@ -102,6 +113,10 @@ async function send<T>(url: string, init?: RequestInit): Promise<T> {
 
 const request = <T>(path: string, init?: RequestInit) => send<T>(BASE + path, init)
 
+/** Con qué proveedores se puede iniciar sesión en este servidor. */
+export const getProviders = () =>
+  request<{ providers: Provider[] }>('/providers').then((data) => data.providers)
+
 export const getMe = () => request<Me>('/me')
 
 export const logout = () => request<void>('/session', { method: 'DELETE' })
@@ -132,15 +147,18 @@ const MESSAGES: Record<string, string> = {
   network_error: 'No se pudo conectar con el servicio.',
   service_unavailable:
     'El servicio no responde. Verifica que la API de Go esté corriendo en el puerto 8080.',
+  unknown_provider: 'Ese proveedor de correo no está disponible.',
   login_required: 'Tu sesión expiró. Inicia sesión de nuevo.',
   unreadable_message: 'No se pudo leer este correo.',
-  database_unavailable: 'La base de datos no está disponible. Las facturas guardadas no se pueden consultar.',
-  database_error: 'No se pudo consultar la base de datos. Intenta de nuevo.',
+  storage_unavailable:
+    'El almacenamiento no está disponible. Las facturas y los archivos guardados no se pueden consultar.',
+  storage_error: 'No se pudo usar el almacenamiento. Intenta de nuevo.',
   invoice_not_found: 'La factura ya no existe.',
   export_failed: 'No se pudo generar el archivo de Excel.',
   file_too_large: 'El archivo es demasiado grande para guardarlo (máximo 20 MB).',
-  bucket_error: 'No se pudo usar el almacenamiento en la nube. Intenta de nuevo.',
-  bucket_unavailable: 'El almacenamiento en la nube no está disponible.',
+  invalid_folder: 'Ese nombre de carpeta no se puede usar.',
+  folder_not_empty: 'La carpeta todavía tiene archivos o carpetas dentro.',
+  folder_not_found: 'La carpeta ya no existe.',
   file_not_found: 'El archivo guardado ya no existe.',
   attachment_not_found: 'El adjunto ya no está disponible.',
   dte_not_found: 'Este correo no trae un DTE (.json) adjunto.',
@@ -211,6 +229,8 @@ export interface InvoiceFilter {
   status?: string
   tipo?: string
   q?: string
+  /** "" (lo más nuevo primero), fecha_asc, total_desc, total_asc o emisor_asc. */
+  sort?: string
 }
 
 export interface SyncResult {
@@ -229,6 +249,14 @@ export interface Summary {
   issuers: (Totals & { nombre: string; nit: string })[]
   byStatus: Record<string, number>
   categories: string[]
+  /** Las últimas facturas, de la más nueva a la más vieja. */
+  recent: Invoice[]
+  /** Sumas por tipo de documento; `name` es el código (01, 03, ...). */
+  types: (Totals & { name: string })[]
+  /** Sumas por categoría; las facturas sin categoría van con `name` vacío. */
+  categoryTotals: (Totals & { name: string })[]
+  /** Lo que suman las facturas que aún no están pagadas. */
+  pending: Totals
 }
 
 function filterParams(filter: InvoiceFilter) {
@@ -251,7 +279,12 @@ export function listInvoices(filter: InvoiceFilter, limit: number, offset: numbe
   const params = filterParams(filter)
   params.set('limit', String(limit))
   params.set('offset', String(offset))
-  return send<{ items: Invoice[]; totals: Totals }>(`${INVOICES}?${params}`)
+  return send<{
+    items: Invoice[]
+    totals: Totals
+    /** Cuántas facturas hay en cada estado con estos filtros, sin contar el filtro de estado. */
+    byStatus: Record<string, number>
+  }>(`${INVOICES}?${params}`)
 }
 
 export const getSummary = () => send<Summary>(`${INVOICES}/summary`)
@@ -266,6 +299,14 @@ export const updateInvoice = (
     body: JSON.stringify(patch),
   })
 
+/** Cambia el estado de varias facturas de una vez. */
+export const updateInvoices = (ids: number[], status: InvoiceStatus) =>
+  send<{ updated: number }>(INVOICES, {
+    method: 'PATCH',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids, status }),
+  })
+
 /** Dirección para descargar el Excel: el libro de compras o el detalle. */
 export function exportUrl(kind: 'compras' | 'detalle', filter: InvoiceFilter) {
   const params = filterParams(filter)
@@ -276,6 +317,7 @@ export function exportUrl(kind: 'compras' | 'detalle', filter: InvoiceFilter) {
 /* ---------- archivos guardados en la nube ---------- */
 
 const FILES = '/api/v1/files'
+const JSON_HEADERS = { Accept: 'application/json', 'Content-Type': 'application/json' }
 
 /** Copia de un adjunto guardada en la aplicación. */
 export interface SavedFile {
@@ -292,18 +334,45 @@ export interface SavedFile {
 
 export interface Cloud {
   files: SavedFile[]
-  /** Nombre del bucket; vacío si los archivos están en la base de datos. */
+  /** Carpetas creadas a mano por el usuario (pueden estar vacías). */
+  folders: string[]
+  /** Nombre del bucket donde se guarda todo. */
   bucket: string
   account: string
 }
 
-/** Guarda en la nube el adjunto número `index` de un correo. */
-export const saveFile = (messageId: string, index: number) =>
+/**
+ * Guarda en la nube el adjunto número `index` de un correo. Con `folder` va
+ * a esa carpeta ("" es la principal); sin ella, la app lo ordena sola por
+ * año, mes y emisor.
+ */
+export const saveFile = (messageId: string, index: number, folder?: string) =>
   send<SavedFile>(FILES, {
     method: 'POST',
-    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messageId, index }),
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ messageId, index, folder }),
   })
+
+/** Cambia un archivo guardado a otra carpeta. */
+export const moveFile = (id: number, folder: string) =>
+  send<SavedFile>(`${FILES}/${id}`, {
+    method: 'PATCH',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ folder }),
+  })
+
+const FOLDERS = '/api/v1/folders'
+
+export const createFolder = (path: string) =>
+  send<{ path: string }>(FOLDERS, {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ path }),
+  })
+
+/** Borra una carpeta creada a mano; solo si está vacía. */
+export const deleteFolder = (path: string) =>
+  send<void>(`${FOLDERS}?path=${encodeURIComponent(path)}`, { method: 'DELETE' })
 
 /** Todo lo guardado en la nube, ordenado por carpeta. */
 export const getCloud = () => send<Cloud>(FILES)

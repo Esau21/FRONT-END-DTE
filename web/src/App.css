@@ -684,10 +684,212 @@ th {
 }
 
 .message .from,
-.message .subject {
+.message .subject,
+.message .snippet {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* ---------- cabecera de la bandeja ---------- */
+
+.mailbox-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 64px;
+  padding: 0 12px 0 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.mailbox-icon,
+.mail-welcome-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  border-radius: 12px;
+  /* Blanco fijo: los colores del icono están pensados para fondo claro */
+  background: #fff;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.mailbox-icon {
+  width: 40px;
+  height: 40px;
+}
+
+.mailbox-title {
+  flex: 1;
+  display: grid;
+  min-width: 0;
+  line-height: 1.3;
+}
+
+.mailbox-title strong {
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.mailbox-title small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.spin {
+  animation: spin 0.9s linear infinite;
+}
+
+/* ---------- correos agrupados por fecha ---------- */
+
+.mail-group {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 0;
+  padding: 10px 18px 6px;
+  background: var(--surface);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+}
+
+.mail-group + .messages {
+  padding-top: 0;
+}
+
+.message .symbol {
+  align-self: start;
+  grid-row: span 3;
+}
+
+.message .from {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  font-weight: 600;
+  /* Quien recorta el texto largo es el <span> de dentro; si recortara esta
+     línea, se comería el borde del punto de "sin leer". */
+  overflow: visible;
+}
+
+.message .from span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.message .subject {
+  color: var(--text);
+}
+
+.message .snippet {
+  grid-column: 2 / -1;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+/* Sin leer: más peso y un punto, como en Gmail */
+.message.unread .from,
+.message.unread .subject {
+  color: var(--ink);
+  font-weight: 800;
+}
+
+.unread-dot {
+  width: 9px;
+  height: 9px;
+  flex: none;
+  margin-left: 1px;
+  border: 1px solid var(--edge);
+  border-radius: 50%;
+  background: var(--violet);
+}
+
+.message.active .snippet {
+  color: var(--lavender-ink);
+  opacity: 0.75;
+}
+
+/* ---------- bienvenida de la bandeja ---------- */
+
+.mail-welcome {
+  flex: 1;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 10px;
+  padding: 40px 24px;
+  text-align: center;
+}
+
+.mail-welcome-icon {
+  width: 84px;
+  height: 84px;
+  margin-bottom: 8px;
+  border-radius: 24px;
+  box-shadow: inset 0 0 0 1px var(--line), var(--shadow);
+}
+
+.mail-welcome h2 {
+  font-size: 22px;
+}
+
+.mail-welcome > p {
+  max-width: 380px;
+  color: var(--muted);
+}
+
+.mail-tips {
+  list-style: none;
+  display: grid;
+  gap: 8px;
+  width: min(380px, 100%);
+  margin: 16px 0 6px;
+  padding: 0;
+  text-align: left;
+}
+
+.mail-tips li {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.mail-tips svg {
+  flex: none;
+  font-size: 22px;
+  color: var(--ink);
+}
+
+.mail-tips span {
+  display: grid;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.mail-tips strong {
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.mail-account {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.mail-account b {
+  color: var(--text);
+  font-weight: 600;
 }
 
 .more {
@@ -1229,6 +1431,15 @@ th {
 
 .file-btn:disabled {
   cursor: default;
+}
+
+.file-ok {
+  color: var(--ok);
+  font-size: 19px !important;
+}
+
+.file-btn:hover:not(:disabled) .file-ok {
+  color: inherit;
 }
 
 .file-cloud.done {

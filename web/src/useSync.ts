@@ -14,7 +14,7 @@ export interface Sync {
 }
 
 /**
- * Trae las facturas nuevas del correo a la base de datos. El backend revisa
+ * Trae las facturas nuevas del correo y las guarda en el bucket. El backend revisa
  * una página de correos por llamada; aquí se repite hasta terminar.
  */
 export function useSync(onSessionLost: () => void): Sync {

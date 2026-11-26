@@ -89,6 +89,12 @@
   color: var(--muted);
 }
 
+.tile-change {
+  margin-right: 8px;
+  color: var(--ink);
+  font-weight: 700;
+}
+
 .tile-link {
   cursor: pointer;
   transition: border-color 0.15s;
@@ -113,6 +119,181 @@
 
 .panel h2 {
   font-size: 17px;
+}
+
+.panels.even {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px 24px;
+}
+
+.panel-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+}
+
+.panel-stats dt {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.panel-stats dd {
+  color: var(--ink);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.panel-stats dd::first-letter {
+  text-transform: uppercase;
+}
+
+.panel-hint {
+  margin-top: 18px;
+  padding: 16px;
+  border-radius: var(--radius);
+  background: var(--soft);
+  font-size: 13.5px;
+}
+
+.panel-action {
+  margin-top: 18px;
+  align-self: flex-start;
+}
+
+/* ---------- facturas por estado ---------- */
+
+.status-bar {
+  display: flex;
+  gap: 2px;
+  height: 14px;
+  margin-top: 22px;
+}
+
+.status-bar div {
+  min-width: 6px;
+  border-radius: 4px;
+}
+
+.status-list {
+  list-style: none;
+  display: grid;
+  gap: 10px;
+  margin: 18px 0 0;
+  padding: 0;
+}
+
+.status-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.status-list i {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.status-list span {
+  flex: 1;
+  color: var(--ink);
+}
+
+.status-list strong {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.status-list small {
+  width: 38px;
+  font-size: 12.5px;
+  color: var(--muted);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- últimas facturas ---------- */
+
+.recent-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+}
+
+.recent-list li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 0;
+}
+
+.recent-list li + li {
+  border-top: 1px solid var(--line);
+}
+
+.recent-main {
+  flex: 1;
+  display: grid;
+  min-width: 0;
+}
+
+.recent-main strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.recent-main small {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.recent-total {
+  flex: none;
+  min-width: 84px;
+  color: var(--ink);
+  font-weight: 700;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- líneas de referencia del gráfico ---------- */
+
+.chart-area {
+  position: relative;
+  flex: 1;
+  display: flex;
+  margin-top: 22px;
+}
+
+.chart-area .chart {
+  margin-top: 0;
+}
+
+.chart-guides {
+  position: absolute;
+  inset: 0 0 28px;
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  pointer-events: none;
+}
+
+.chart-guides span {
+  border-top: 1px dashed var(--line);
+  font-size: 11px;
+  color: var(--muted);
+  text-align: right;
 }
 
 .panel-sub {
@@ -332,6 +513,150 @@
   color: var(--ink);
 }
 
+/* La barra de filtros es una tarjeta propia, en una sola fila */
+.page > .toolbar.card {
+  flex-direction: row;
+  border-bottom: 1px solid var(--line);
+}
+
+.tiles.compact .tile {
+  padding: 14px 18px;
+}
+
+.tiles.compact .tile strong {
+  font-size: 22px;
+}
+
+/* ---------- pestañas por estado y conteo ---------- */
+
+.table-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.inv-tabs {
+  margin: 0;
+}
+
+.tab-count {
+  min-width: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--soft);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 20px;
+  text-align: center;
+}
+
+.inv-tabs button[aria-selected='true'] .tab-count {
+  background: var(--violet);
+  color: var(--on-violet);
+}
+
+.table-count {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* ---------- acciones sobre varias facturas ---------- */
+
+.bulk {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--lavender);
+  color: var(--lavender-ink);
+}
+
+.bulk strong {
+  margin-right: 8px;
+}
+
+.bulk span {
+  font-size: 13px;
+}
+
+.bulk .btn-light {
+  background: var(--surface);
+}
+
+.bulk .btn-icon {
+  margin-left: auto;
+  color: inherit;
+}
+
+/* ---------- filas ---------- */
+
+.col-check {
+  width: 44px;
+  padding-right: 0 !important;
+}
+
+.col-check input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--edge);
+  cursor: pointer;
+}
+
+.th-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.th-sort:hover,
+.th-sort.on {
+  color: var(--ink);
+}
+
+.th-sort svg {
+  font-size: 12px;
+}
+
+.inv-issuer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.inv-issuer > div {
+  min-width: 0;
+}
+
+.inv-sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 8px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.inv-sub b {
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--soft);
+  color: var(--text);
+  font-weight: 600;
+}
+
 .inv-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -425,6 +750,163 @@ a.inv-name:hover,
 
 /* ---------- ubicación: bucket › carpeta ---------- */
 
+.crumb-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+}
+
+.crumb-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  flex: 0 1 460px;
+  justify-content: flex-end;
+}
+
+.crumb-search {
+  flex: 1 1 200px;
+  background: var(--surface);
+}
+
+.new-folder {
+  flex-direction: row !important;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+}
+
+.new-folder > svg {
+  font-size: 22px;
+  flex: none;
+  color: var(--muted);
+}
+
+.new-folder .input {
+  flex: 1 1 220px;
+  width: auto;
+}
+
+.blank .btn {
+  margin-top: 4px;
+}
+
+/* ---------- ventana para elegir carpeta ---------- */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(13, 13, 13, 0.55);
+}
+
+.modal {
+  display: flex;
+  flex-direction: column;
+  width: min(460px, 100%);
+  max-height: min(620px, 100%);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.5);
+  /* La ventana puede abrirse desde un botón: no debe heredar su texto */
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+  white-space: normal;
+  cursor: default;
+}
+
+.modal-head,
+.modal-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 18px;
+}
+
+.modal-head {
+  padding-right: 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.modal-head h2 {
+  min-width: 0;
+  font-size: 17px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.modal-body {
+  flex: 1;
+  min-height: 120px;
+  padding: 8px;
+  overflow-y: auto;
+}
+
+.pick {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 14px;
+  border-radius: var(--radius);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.pick:hover {
+  background: var(--soft);
+}
+
+.pick.on {
+  background: var(--lavender);
+  color: var(--lavender-ink);
+}
+
+.pick input {
+  flex: none;
+  accent-color: var(--edge);
+}
+
+.pick svg {
+  font-size: 19px;
+  flex: none;
+}
+
+.pick span {
+  display: grid;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.pick small {
+  font-size: 12.5px;
+  opacity: 0.75;
+}
+
+.modal-new {
+  display: grid;
+  gap: 6px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.modal-foot {
+  justify-content: flex-end;
+  border-top: 1px solid var(--line);
+}
+
 .crumb {
   display: flex;
   flex-wrap: wrap;
@@ -456,6 +938,10 @@ button.crumb-item:not(:disabled) {
 
 button.crumb-item:not(:disabled):hover {
   box-shadow: inset 0 0 0 1px var(--edge);
+}
+
+button.crumb-item:disabled {
+  color: var(--ink);
 }
 
 span.crumb-item::first-letter {
@@ -703,7 +1189,8 @@ button.box:hover {
 }
 
 @media screen and (max-width: 1100px) {
-  .panels {
+  .panels,
+  .panels.even {
     grid-template-columns: minmax(0, 1fr);
   }
 }
@@ -742,9 +1229,20 @@ button.box:hover {
     flex-basis: 100%;
   }
 
-  .crumb,
-  .boxes {
+  .crumb-bar,
+  .boxes,
+  .page > .sync-note {
     padding: 0 16px;
+  }
+
+  .crumb-tools {
+    flex: 1 1 100%;
+  }
+
+  .new-folder {
+    margin: 0 16px;
+    border: 1px solid var(--line) !important;
+    border-radius: var(--radius-lg) !important;
   }
 
   .boxes {
@@ -807,8 +1305,34 @@ button.box:hover {
   }
 
   .inv-table-wrap .col-tipo,
-  .inv-table-wrap .col-iva {
+  .inv-table-wrap .col-iva,
+  .inv-issuer .symbol {
     display: none;
+  }
+
+  .page > .toolbar.card,
+  .tiles.compact {
+    margin: 0 16px;
+    padding-inline: 12px;
+  }
+
+  .tiles.compact {
+    padding-inline: 0;
+  }
+
+  .page > .toolbar.card {
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+  }
+
+  .inv-tabs {
+    display: flex;
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .inv-tabs button {
+    flex: none;
   }
 
   .inv-table th {
@@ -885,4 +1409,9 @@ button.box:hover {
   tr {
     break-inside: avoid;
   }
+}
+
+/* Las pestañas de estado no empujan lo que tienen al lado */
+.inv-tabs ~ * {
+  margin-top: 0;
 }

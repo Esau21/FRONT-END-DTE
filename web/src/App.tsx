@@ -4,9 +4,11 @@ import {
   ArrowLeftIcon,
   ArrowSquareOutIcon,
   ArrowsClockwiseIcon,
+  PaperclipIcon,
   BracketsCurlyIcon,
   BuildingsIcon,
   CalendarBlankIcon,
+  CheckCircleIcon,
   ChartBarIcon,
   ClockCounterClockwiseIcon,
   DownloadSimpleIcon,
@@ -14,7 +16,6 @@ import {
   FileIcon,
   FilePdfIcon,
   FunnelIcon,
-  FileTextIcon,
   ListIcon,
   MagnifyingGlassIcon,
   MoonIcon,
@@ -30,7 +31,8 @@ import {
   XIcon,
 } from '@phosphor-icons/react'
 import {
-  LOGIN_URL,
+  getProviders,
+  loginUrl,
   attachmentUrl,
   errorText,
   getDte,
@@ -42,7 +44,16 @@ import {
   listMessages,
   logout,
 } from './api'
-import type { Attachment, Dte, Json, Me, MessageDetail, MessageSummary } from './api'
+import type {
+  Attachment,
+  Dte,
+  Json,
+  Me,
+  MessageDetail,
+  MessageSummary,
+  Provider,
+} from './api'
+import { FolderPicker } from './FolderPicker'
 import { Dashboard, FilesView, InvoicesView } from './Invoices'
 import { TIPOS_DTE, haciendaUrl, money } from './format'
 import { useSync } from './useSync'
@@ -539,6 +550,69 @@ function GoogleCloudIcon() {
   )
 }
 
+/** Icono de Gmail (el del logotipo oficial). */
+function GmailIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg viewBox="52 42 88 66" width={size} height={(size * 66) / 88} aria-hidden="true">
+      <path fill="#4285f4" d="M58 108h14V74L52 59v43c0 3.32 2.69 6 6 6" />
+      <path fill="#34a853" d="M120 108h14c3.32 0 6-2.69 6-6V59l-20 15" />
+      <path fill="#fbbc04" d="M120 48v26l20-15v-8c0-7.42-8.47-11.65-14.4-7.2" />
+      <path fill="#ea4335" d="M72 74V48l24 18 24-18v26L96 92" />
+      <path fill="#c5221f" d="M52 51v8l20 15V48l-5.6-4.2c-5.94-4.45-14.4-.22-14.4 7.2" />
+    </svg>
+  )
+}
+
+/** Logotipo de Microsoft: cuatro cuadros. */
+function MicrosoftIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg viewBox="0 0 21 21" width={size} height={size} aria-hidden="true">
+      <rect x="1" y="1" width="9" height="9" fill="#f25022" />
+      <rect x="11" y="1" width="9" height="9" fill="#7fba00" />
+      <rect x="1" y="11" width="9" height="9" fill="#00a4ef" />
+      <rect x="11" y="11" width="9" height="9" fill="#ffb900" />
+    </svg>
+  )
+}
+
+const PROVIDERS: Record<Provider, { name: string; login: string }> = {
+  gmail: { name: 'Gmail', login: 'Continuar con Google' },
+  outlook: { name: 'Outlook', login: 'Continuar con Microsoft' },
+}
+
+function ProviderIcon({ provider, size }: { provider: Provider; size: number }) {
+  return provider === 'outlook' ? <MicrosoftIcon size={size * 0.82} /> : <GmailIcon size={size} />
+}
+
+/** Un botón de inicio de sesión por cada proveedor que el servidor ofrece. */
+function LoginButtons() {
+  const [providers, setProviders] = useState<Provider[]>(['gmail'])
+
+  useEffect(() => {
+    let alive = true
+    getProviders()
+      .then((list) => alive && list.length > 0 && setProviders(list))
+      // Si no se pueden consultar, queda el botón de Google
+      .catch(() => undefined)
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  return (
+    <>
+      {providers
+        .filter((provider) => provider in PROVIDERS)
+        .map((provider) => (
+          <a key={provider} className="btn btn-outline btn-lg" href={loginUrl(provider)}>
+            {provider === 'outlook' ? <MicrosoftIcon /> : <GoogleIcon />}
+            {PROVIDERS[provider].login}
+          </a>
+        ))}
+    </>
+  )
+}
+
 function GoogleIcon() {
   return (
     <svg viewBox="0 0 48 48" width="18" height="18" aria-hidden="true">
@@ -708,10 +782,7 @@ export default function App() {
               Conecta tu correo y revisa las facturas y comprobantes que recibes, con sus
               totales y su PDF, en un solo lugar.
             </p>
-            <a className="btn btn-outline btn-lg" href={LOGIN_URL}>
-              <GoogleIcon />
-              Continuar con Google
-            </a>
+            <LoginButtons />
             <p className="hint">
               <ShieldCheckIcon />
               Solo lectura. No se envía ni se modifica ningún correo.
@@ -904,6 +975,8 @@ function Shell(props: {
               <MessageList
                 key={q}
                 q={q}
+                account={me.email}
+                provider={me.provider ?? 'gmail'}
                 selected={selected}
                 onSelect={setSelected}
                 onSessionLost={onSessionLost}
@@ -919,7 +992,11 @@ function Shell(props: {
                   onSessionLost={onSessionLost}
                 />
               ) : (
-                <Blank icon={<FileTextIcon />}>Selecciona un correo para ver su documento.</Blank>
+                <MailWelcome
+                  account={me.email}
+                  provider={me.provider ?? 'gmail'}
+                  onlyDte={view === 'dte'}
+                />
               )}
             </section>
           </main>
@@ -931,6 +1008,22 @@ function Shell(props: {
 
 /* ---------- lista ---------- */
 
+/** A qué grupo de la lista pertenece un correo según su fecha. */
+function dateGroup(value: string) {
+  const date = new Date(value)
+  if (!value || Number.isNaN(date.getTime())) return 'Sin fecha'
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const days = Math.floor((today.getTime() - new Date(date).setHours(0, 0, 0, 0)) / 86_400_000)
+  if (days <= 0) return 'Hoy'
+  if (days === 1) return 'Ayer'
+  if (days < 7) return 'Esta semana'
+
+  const month = date.toLocaleDateString('es-SV', { month: 'long', year: 'numeric' })
+  return month.charAt(0).toUpperCase() + month.slice(1)
+}
+
 interface ListState {
   status: 'loading' | 'ready' | 'more'
   items: MessageSummary[]
@@ -940,17 +1033,21 @@ interface ListState {
 
 function MessageList(props: {
   q: string
+  account: string
+  provider: Provider
   selected: string | null
   onSelect: (id: string) => void
   onSessionLost: () => void
 }) {
-  const { q, selected, onSelect, onSessionLost } = props
+  const { q, account, provider, selected, onSelect, onSessionLost } = props
   const [state, setState] = useState<ListState>({
     status: 'loading',
     items: [],
     next: '',
     error: '',
   })
+  // Cada vez que cambia, la lista se vuelve a pedir desde el principio
+  const [reload, setReload] = useState(0)
 
   const fail = useCallback(
     (err: unknown) => {
@@ -976,7 +1073,7 @@ function MessageList(props: {
     return () => {
       alive = false
     }
-  }, [q, fail])
+  }, [q, fail, reload])
 
   async function loadMore() {
     setState((s) => ({ ...s, status: 'more', error: '' }))
@@ -993,18 +1090,47 @@ function MessageList(props: {
     }
   }
 
+  function refresh() {
+    setState((s) => ({ ...s, status: 'loading' }))
+    setReload((n) => n + 1)
+  }
+
   const loading = state.status === 'loading'
+
+  // Los correos llegan del más nuevo al más viejo: se agrupan por fecha
+  const groups: { label: string; items: MessageSummary[] }[] = []
+  for (const message of state.items) {
+    const label = dateGroup(message.date)
+    const last = groups[groups.length - 1]
+    if (last?.label === label) last.items.push(message)
+    else groups.push({ label, items: [message] })
+  }
 
   return (
     <>
-      <div className="card-header">
-        <h3>Correos</h3>
+      <div className="mailbox-head">
+        <span className="mailbox-icon">
+          <ProviderIcon provider={provider} size={22} />
+        </span>
+        <div className="mailbox-title">
+          <strong>{PROVIDERS[provider].name}</strong>
+          <small title={account}>{account}</small>
+        </div>
         {!loading && (
           <span className="badge primary">
             {state.items.length}
             {state.next && '+'}
           </span>
         )}
+        <button
+          className="btn-icon"
+          onClick={refresh}
+          disabled={loading}
+          title="Actualizar"
+          aria-label="Actualizar la lista de correos"
+        >
+          <ArrowsClockwiseIcon className={loading ? 'spin' : undefined} />
+        </button>
       </div>
 
       {loading ? (
@@ -1014,24 +1140,34 @@ function MessageList(props: {
           {state.items.length === 0 && !state.error && (
             <Blank icon={<TrayIcon />}>No hay correos que coincidan.</Blank>
           )}
-          <ul className="messages">
-            {state.items.map((m) => {
-              const name = senderName(m.from)
-              return (
-                <li key={m.id}>
-                  <button
-                    className={m.id === selected ? 'message active' : 'message'}
-                    onClick={() => onSelect(m.id)}
-                  >
-                    <Symbol name={name} />
-                    <span className="from">{name}</span>
-                    <span className="date">{formatDate(m.date)}</span>
-                    <span className="subject">{m.subject || '(sin asunto)'}</span>
-                  </button>
-                </li>
-              )
-            })}
-          </ul>
+          {groups.map((group) => (
+            <section key={group.label}>
+              <h4 className="mail-group">{group.label}</h4>
+              <ul className="messages">
+                {group.items.map((m) => {
+                  const sender = senderName(m.from)
+                  const classes = ['message', m.id === selected && 'active', m.unread && 'unread']
+                  return (
+                    <li key={m.id}>
+                      <button
+                        className={classes.filter(Boolean).join(' ')}
+                        onClick={() => onSelect(m.id)}
+                      >
+                        <Symbol name={sender} />
+                        <span className="from" title={m.from}>
+                          {m.unread && <i className="unread-dot" title="Sin leer" />}
+                          <span>{sender}</span>
+                        </span>
+                        <span className="date">{formatDate(m.date)}</span>
+                        <span className="subject">{m.subject || '(sin asunto)'}</span>
+                        {m.snippet && <span className="snippet">{m.snippet}</span>}
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            </section>
+          ))}
           {state.error && (
             <p className="alert danger">
               <WarningCircleIcon />
@@ -1044,12 +1180,56 @@ function MessageList(props: {
               onClick={loadMore}
               disabled={state.status === 'more'}
             >
-              {state.status === 'more' ? 'Cargando…' : 'Cargar más'}
+              {state.status === 'more' ? 'Cargando…' : 'Cargar más correos'}
             </button>
           )}
         </div>
       )}
     </>
+  )
+}
+
+/** Lo que se ve a la derecha mientras no hay ningún correo abierto. */
+function MailWelcome(props: { account: string; provider: Provider; onlyDte: boolean }) {
+  const { account, provider, onlyDte } = props
+  return (
+    <div className="mail-welcome">
+      <span className="mail-welcome-icon">
+        <ProviderIcon provider={provider} size={44} />
+      </span>
+      <h2>{onlyDte ? 'Tus correos con factura' : `Tu bandeja de ${PROVIDERS[provider].name}`}</h2>
+      <p>
+        {onlyDte
+          ? 'Aquí están solo los correos que traen un DTE adjunto. Elige uno para leerlo como factura.'
+          : 'Elige un correo de la lista para leerlo aquí.'}
+      </p>
+      <ul className="mail-tips">
+        <li>
+          <ReceiptIcon />
+          <span>
+            <strong>Documento</strong>
+            La factura leída del JSON: emisor, detalle y totales.
+          </span>
+        </li>
+        <li>
+          <FilePdfIcon />
+          <span>
+            <strong>PDF</strong>
+            La versión oficial, tal como la envió el emisor.
+          </span>
+        </li>
+        <li>
+          <PaperclipIcon />
+          <span>
+            <strong>Adjuntos</strong>
+            Descárgalos o guárdalos en una carpeta de la nube.
+          </span>
+        </li>
+      </ul>
+      <small className="mail-account">
+        Conectado a <b>{account}</b> · solo lectura
+      </small>
+    </div>
   )
 }
 
@@ -1163,7 +1343,7 @@ function Detail(props: { id: string; onBack: () => void; onSessionLost: () => vo
                 messageId={id}
                 file={file}
                 saved={saved.includes(file.filename)}
-                onSaved={() => setSaved((names) => [...names, file.filename])}
+                onSaved={() => setSaved((names) => [...new Set([...names, file.filename])])}
                 onSessionLost={onSessionLost}
               />
             </li>
@@ -1221,14 +1401,16 @@ function AttachmentChip(props: {
   onSessionLost: () => void
 }) {
   const { messageId, file, saved, onSaved, onSessionLost } = props
+  const [picking, setPicking] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  async function save() {
+  async function save(folder: string | undefined) {
+    setPicking(false)
     setSaving(true)
     setError('')
     try {
-      await saveFile(messageId, file.index)
+      await saveFile(messageId, file.index, folder)
       onSaved()
     } catch (err) {
       if (isUnauthorized(err)) onSessionLost()
@@ -1262,12 +1444,25 @@ function AttachmentChip(props: {
       </a>
       <button
         className={saved ? 'file-btn file-cloud done' : 'file-btn file-cloud'}
-        onClick={save}
-        disabled={saving || saved}
+        onClick={() => setPicking(true)}
+        disabled={saving}
+        title={saved ? 'Ya está guardado. Toca para cambiarlo de carpeta.' : undefined}
       >
         <GoogleCloudIcon />
-        {saved ? 'Guardado en la nube' : saving ? 'Guardando…' : 'Guardar en la nube'}
+        {saving ? 'Guardando…' : saved ? 'Guardado en la nube' : 'Guardar en la nube'}
+        {saved && !saving && <CheckCircleIcon weight="fill" className="file-ok" />}
       </button>
+
+      {picking && (
+        <FolderPicker
+          title={saved ? 'Cambiar de carpeta' : '¿Dónde lo guardamos?'}
+          confirm={saved ? 'Mover aquí' : 'Guardar aquí'}
+          allowAuto
+          onPick={save}
+          onClose={() => setPicking(false)}
+          onSessionLost={onSessionLost}
+        />
+      )}
     </div>
   )
 }

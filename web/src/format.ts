@@ -70,3 +70,13 @@ export function haciendaUrl(ambiente: string, codigoGeneracion: string, fecha: s
   })
   return `https://admin.factura.gob.sv/consultaPublica?${params}`
 }
+
+/** Monto abreviado para ejes de gráficos: 1250 → "$1.3 mil" */
+export function moneyShort(value: number) {
+  return new Intl.NumberFormat('es-SV', {
+    style: 'currency',
+    currency: 'USD',
+    notation: 'compact',
+    maximumFractionDigits: 1,
+  }).format(value)
+}

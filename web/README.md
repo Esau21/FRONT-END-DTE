@@ -81,7 +81,7 @@ Todas bajo `/api/v1/mail`:
 
 La búsqueda y los filtros se traducen en el front a la sintaxis de búsqueda de Gmail y se envían en `q`.
 
-Las facturas guardadas usan otro grupo de rutas, bajo `/api/v1/invoices`, y necesitan que el backend tenga su base de datos (Postgres) disponible:
+Las facturas guardadas usan otro grupo de rutas, bajo `/api/v1/invoices`, y necesitan que el backend tenga su bucket disponible (ahí se guarda todo; no hay base de datos):
 
 | Método  | Ruta       | Uso                                                              |
 | ------- | ---------- | ---------------------------------------------------------------- |

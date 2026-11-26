@@ -30,6 +30,7 @@
   --on-violet: #0d0d0d;
   --edge: #0d0d0d;
   --bar: #0d0d0d;
+  --ok: #15a34a; /* verde de "hecho" */
 
   --lavender: #eefbc4;
   --lavender-ink: #0d0d0d;
@@ -78,6 +79,7 @@
   --on-violet: #0d0d0d;
   --edge: #c7f33a;
   --bar: #c7f33a;
+  --ok: #4ade80;
 
   --lavender: #2b3410;
   --lavender-ink: #e3f99a;

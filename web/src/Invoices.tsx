@@ -3,11 +3,16 @@ import type { ReactNode } from 'react'
 import {
   ArrowsClockwiseIcon,
   ArrowLeftIcon,
+  ArrowDownIcon,
+  ArrowRightIcon,
+  ArrowUpIcon,
   ArrowSquareOutIcon,
   BracketsCurlyIcon,
   CloudIcon,
   DownloadSimpleIcon,
   FolderSimpleIcon,
+  FolderSimplePlusIcon,
+  FoldersIcon,
   EnvelopeSimpleIcon,
   FileIcon,
   FilePdfIcon,
@@ -16,18 +21,23 @@ import {
   ReceiptIcon,
   TrashIcon,
   WarningCircleIcon,
+  CheckIcon,
   XIcon,
 } from '@phosphor-icons/react'
 import {
+  createFolder,
   deleteFile,
+  deleteFolder,
   errorText,
   exportUrl,
   getCloud,
   getSummary,
   isUnauthorized,
   listInvoices,
+  moveFile,
   savedFileUrl,
   updateInvoice,
+  updateInvoices,
 } from './api'
 import type { Cloud, Invoice, InvoiceFilter, InvoiceStatus, SavedFile, Summary, Totals } from './api'
 import {
@@ -35,10 +45,13 @@ import {
   haciendaUrl,
   isoDate,
   money,
+  moneyShort,
   monthLabel,
   shortDate,
   tipoName,
 } from './format'
+import { FolderPicker } from './FolderPicker'
+import { folderLabel, folderTrail, foldersOf, startsWith } from './folders'
 import type { Sync } from './useSync'
 import './Invoices.css'
 
@@ -132,6 +145,25 @@ export function Dashboard(props: {
   )
 }
 
+/** Una fila con nombre, monto y una barra proporcional. */
+function BarRow(props: { name: string; detail: string; value: number; max: number }) {
+  const { name, detail, value, max } = props
+  return (
+    <li>
+      <div className="ranking-row">
+        <span title={name}>{name}</span>
+        <strong>{money(value)}</strong>
+      </div>
+      <div className="ranking-track">
+        <div className="ranking-bar" style={{ width: `${(Math.max(0, value) / max) * 100}%` }} />
+      </div>
+      <small>{detail}</small>
+    </li>
+  )
+}
+
+const facturas = (n: number) => `${n} ${n === 1 ? 'factura' : 'facturas'}`
+
 function DashboardData(props: { onSessionLost: () => void; onOpenInvoices: () => void }) {
   const { onSessionLost, onOpenInvoices } = props
   const [summary, setSummary] = useState<Summary | null>(null)
@@ -159,16 +191,16 @@ function DashboardData(props: { onSessionLost: () => void; onOpenInvoices: () =>
       </p>
     )
   }
-  if (!summary) return <div className="card page-loading"><span className="spinner" /></div>
+  if (!summary) {
+    return (
+      <div className="card page-loading">
+        <span className="spinner" />
+      </div>
+    )
+  }
 
-  const months = fillMonths(summary)
-  const current = months[months.length - 1]
-  const previous = months[months.length - 2]
-  const max = Math.max(...months.map((m) => m.total), 1)
-  const topIssuer = Math.max(...summary.issuers.map((i) => i.total), 1)
-  const total = Object.values(summary.byStatus).reduce((a, b) => a + b, 0)
-
-  if (total === 0) {
+  const saved = Object.values(summary.byStatus).reduce((a, b) => a + b, 0)
+  if (saved === 0) {
     return (
       <div className="card">
         <Empty icon={<ReceiptIcon />}>
@@ -181,7 +213,30 @@ function DashboardData(props: { onSessionLost: () => void; onOpenInvoices: () =>
     )
   }
 
+  const months = fillMonths(summary)
+  const current = months[months.length - 1]
+  const previous = months[months.length - 2]
+  const max = Math.max(...months.map((m) => m.total), 1)
+  const yearTotal = months.reduce((sum, m) => sum + m.total, 0)
+  const yearIva = months.reduce((sum, m) => sum + m.iva, 0)
+  const active = months.filter((m) => m.count > 0)
+  const best = months.reduce((a, b) => (b.total > a.total ? b : a))
+
+  // Cuánto cambió respecto al mes anterior
   const diff = current.total - previous.total
+  const change =
+    previous.total > 0 ? `${diff >= 0 ? '▲' : '▼'} ${Math.abs(Math.round((diff / previous.total) * 100))}%` : ''
+
+  const statuses = STATUSES.map((status) => ({
+    status,
+    ...STATUS[status],
+    count: summary.byStatus[status] ?? 0,
+  }))
+
+  const topIssuer = Math.max(...summary.issuers.map((i) => i.total), 1)
+  const topType = Math.max(...summary.types.map((t) => t.total), 1)
+  const named = summary.categoryTotals.filter((c) => c.name)
+  const topCategory = Math.max(...named.map((c) => c.total), 1)
 
   return (
     <>
@@ -190,56 +245,143 @@ function DashboardData(props: { onSessionLost: () => void; onOpenInvoices: () =>
           <span>Compras de {monthLabel(current.month, true)}</span>
           <strong>{money(current.total)}</strong>
           <small>
+            {change && <b className="tile-change">{change}</b>}
             {previous.total === 0
-              ? 'Sin compras el mes anterior'
-              : `${money(Math.abs(diff))} ${diff >= 0 ? 'más' : 'menos'} que el mes anterior`}
+              ? `${facturas(current.count)} · sin compras el mes anterior`
+              : `${facturas(current.count)} · frente a ${money(previous.total)} el mes anterior`}
           </small>
         </div>
         <div className="tile">
           <span>IVA del mes</span>
           <strong>{money(current.iva)}</strong>
-          <small>Crédito fiscal de las facturas recibidas</small>
+          <small>{money(yearIva)} en los últimos 12 meses</small>
         </div>
-        <div className="tile">
-          <span>Facturas del mes</span>
-          <strong>{current.count}</strong>
-          <small>{total} guardadas en total</small>
-        </div>
+        <button className="tile tile-link" onClick={onOpenInvoices}>
+          <span>Por pagar</span>
+          <strong>{money(summary.pending.total)}</strong>
+          <small>{facturas(summary.pending.count)} sin marcar como pagadas</small>
+        </button>
         <button className="tile tile-link" onClick={onOpenInvoices}>
           <span>Pendientes de revisar</span>
           <strong>{summary.byStatus.pendiente ?? 0}</strong>
-          <small>
-            {summary.byStatus.revisada ?? 0} revisadas · {summary.byStatus.pagada ?? 0} pagadas
-          </small>
+          <small>de {facturas(saved)} guardadas</small>
         </button>
       </div>
 
       <div className="panels">
         <section className="card panel">
-          <h2>Compras por mes</h2>
-          <p className="panel-sub">Últimos 12 meses. Las notas de crédito restan.</p>
-          <div className="chart">
-            {months.map((m) => {
-              const height = Math.max(0, m.total) / max
-              return (
+          <div className="panel-head">
+            <div>
+              <h2>Compras por mes</h2>
+              <p className="panel-sub">Últimos 12 meses. Las notas de crédito restan.</p>
+            </div>
+            <dl className="panel-stats">
+              <div>
+                <dt>Total</dt>
+                <dd>{money(yearTotal)}</dd>
+              </div>
+              <div>
+                <dt>Promedio mensual</dt>
+                <dd>{money(active.length ? yearTotal / active.length : 0)}</dd>
+              </div>
+              <div>
+                <dt>Mes más alto</dt>
+                <dd>{monthLabel(best.month, true)}</dd>
+              </div>
+            </dl>
+          </div>
+
+          <div className="chart-area">
+            {/* Líneas de referencia: el máximo y la mitad */}
+            <div className="chart-guides" aria-hidden="true">
+              <span>{moneyShort(max)}</span>
+              <span>{moneyShort(max / 2)}</span>
+            </div>
+            <div className="chart">
+              {months.map((m) => (
                 <div className="chart-col" key={m.month} tabIndex={0}>
                   <div className="chart-tip" role="tooltip">
                     <span>{monthLabel(m.month, true)}</span>
                     <strong>{money(m.total)}</strong>
                     <span>
-                      {m.count} {m.count === 1 ? 'factura' : 'facturas'} · IVA {money(m.iva)}
+                      {facturas(m.count)} · IVA {money(m.iva)}
                     </span>
                   </div>
                   <div className="chart-track">
-                    <div className="chart-bar" style={{ height: `${height * 100}%` }} />
+                    <div
+                      className="chart-bar"
+                      style={{ height: `${(Math.max(0, m.total) / max) * 100}%` }}
+                    />
                   </div>
                   <span className={m === current ? 'chart-label now' : 'chart-label'}>
                     {monthLabel(m.month)}
                   </span>
                 </div>
-              )
-            })}
+              ))}
+            </div>
           </div>
+        </section>
+
+        <section className="card panel">
+          <h2>Estado de las facturas</h2>
+          <p className="panel-sub">Todas las guardadas.</p>
+
+          {/* Una sola barra repartida entre los tres estados */}
+          <div className="status-bar" role="img" aria-label="Facturas por estado">
+            {statuses
+              .filter((item) => item.count > 0)
+              .map((item) => (
+                <div
+                  key={item.status}
+                  className={item.tone}
+                  style={{ flexGrow: item.count }}
+                  title={`${item.label}: ${item.count}`}
+                />
+              ))}
+          </div>
+          <ul className="status-list">
+            {statuses.map((item) => (
+              <li key={item.status}>
+                <i className={item.tone} />
+                <span>{item.label}</span>
+                <strong>{item.count}</strong>
+                <small>{Math.round((item.count / saved) * 100)}%</small>
+              </li>
+            ))}
+          </ul>
+          <button className="btn btn-light panel-action" onClick={onOpenInvoices}>
+            Revisar facturas
+            <ArrowRightIcon weight="bold" />
+          </button>
+        </section>
+      </div>
+
+      <div className="panels even">
+        <section className="card panel">
+          <div className="panel-head">
+            <div>
+              <h2>Últimas facturas</h2>
+              <p className="panel-sub">Las más recientes por fecha de emisión.</p>
+            </div>
+            <button className="btn btn-light btn-sm" onClick={onOpenInvoices}>
+              Ver todas
+              <ArrowRightIcon weight="bold" />
+            </button>
+          </div>
+          <ul className="recent-list">
+            {summary.recent.map((invoice) => (
+              <li key={invoice.id}>
+                <div className="recent-main">
+                  <strong title={invoice.emisorNombre}>{invoice.emisorNombre || 'Sin nombre'}</strong>
+                  <small>
+                    {shortDate(invoice.fecha)} · {TIPOS_CORTOS[invoice.tipoDte] ?? tipoName(invoice.tipoDte)}
+                  </small>
+                </div>
+                <StatusBadge status={invoice.status} />
+                <span className="recent-total">{money(signed(invoice, invoice.total), invoice.moneda)}</span>
+              </li>
+            ))}
+          </ul>
         </section>
 
         <section className="card panel">
@@ -247,23 +389,56 @@ function DashboardData(props: { onSessionLost: () => void; onOpenInvoices: () =>
           <p className="panel-sub">Últimos 12 meses.</p>
           <ol className="ranking">
             {summary.issuers.map((issuer) => (
-              <li key={issuer.nit || issuer.nombre}>
-                <div className="ranking-row">
-                  <span title={issuer.nombre}>{issuer.nombre || 'Sin nombre'}</span>
-                  <strong>{money(issuer.total)}</strong>
-                </div>
-                <div className="ranking-track">
-                  <div
-                    className="ranking-bar"
-                    style={{ width: `${(Math.max(0, issuer.total) / topIssuer) * 100}%` }}
-                  />
-                </div>
-                <small>
-                  {issuer.count} {issuer.count === 1 ? 'factura' : 'facturas'}
-                </small>
-              </li>
+              <BarRow
+                key={issuer.nit || issuer.nombre}
+                name={issuer.nombre || 'Sin nombre'}
+                detail={facturas(issuer.count)}
+                value={issuer.total}
+                max={topIssuer}
+              />
             ))}
           </ol>
+        </section>
+      </div>
+
+      <div className="panels even">
+        <section className="card panel">
+          <h2>Por tipo de documento</h2>
+          <p className="panel-sub">Últimos 12 meses.</p>
+          <ol className="ranking">
+            {summary.types.map((type) => (
+              <BarRow
+                key={type.name}
+                name={tipoName(type.name)}
+                detail={`${facturas(type.count)} · IVA ${money(type.iva)}`}
+                value={type.total}
+                max={topType}
+              />
+            ))}
+          </ol>
+        </section>
+
+        <section className="card panel">
+          <h2>Por categoría</h2>
+          <p className="panel-sub">Últimos 12 meses.</p>
+          {named.length > 0 ? (
+            <ol className="ranking">
+              {named.slice(0, 6).map((category) => (
+                <BarRow
+                  key={category.name}
+                  name={category.name}
+                  detail={facturas(category.count)}
+                  value={category.total}
+                  max={topCategory}
+                />
+              ))}
+            </ol>
+          ) : (
+            <p className="panel-hint">
+              Aún no has puesto categorías. Abre una factura y asígnale una (por ejemplo
+              “Inventario” o “Servicios”) para ver aquí en qué se va el gasto.
+            </p>
+          )}
         </section>
       </div>
     </>
@@ -300,6 +475,41 @@ function periodRange(period: Period): { from: string; to: string } {
   }
 }
 
+/** Tono estable por emisor, para distinguirlos de un vistazo. */
+function toneOf(name: string) {
+  let hash = 0
+  for (const ch of name) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0
+  return ['lavender', 'sky', 'mint'][hash % 3]
+}
+
+function initialsOf(name: string) {
+  const words = name.split(/[\s.,_-]+/).filter(Boolean)
+  return ((words[0]?.[0] ?? '?') + (words[1]?.[0] ?? '')).toUpperCase()
+}
+
+/** Encabezado de columna que ordena la tabla al hacer clic. */
+function SortHeader(props: {
+  label: string
+  /** Orden al primer clic y, si hay, el contrario al segundo. */
+  orders: [string, string?]
+  sort: string
+  onSort: (sort: string) => void
+  right?: boolean
+}) {
+  const { label, orders, sort, onSort, right } = props
+  const active = orders.indexOf(sort)
+  const next = active === 0 && orders[1] !== undefined ? orders[1] : orders[0]
+  const descending = sort === '' || sort.endsWith('_desc')
+  return (
+    <th className={right ? 'right' : undefined} aria-sort={active < 0 ? 'none' : descending ? 'descending' : 'ascending'}>
+      <button className={active >= 0 ? 'th-sort on' : 'th-sort'} onClick={() => onSort(next)}>
+        {label}
+        {active >= 0 && (descending ? <ArrowDownIcon weight="bold" /> : <ArrowUpIcon weight="bold" />)}
+      </button>
+    </th>
+  )
+}
+
 export function InvoicesView(props: {
   sync: Sync
   onSessionLost: () => void
@@ -310,6 +520,7 @@ export function InvoicesView(props: {
   const [custom, setCustom] = useState({ from: '', to: '' })
   const [status, setStatus] = useState('')
   const [tipo, setTipo] = useState('')
+  const [sort, setSort] = useState('')
   const [draft, setDraft] = useState('')
   const [q, setQ] = useState('')
 
@@ -320,102 +531,91 @@ export function InvoicesView(props: {
   }, [draft])
 
   const range = period === 'custom' ? custom : periodRange(period)
-  const filter: InvoiceFilter = { ...range, status, tipo, q }
+  const filter: InvoiceFilter = { ...range, status, tipo, q, sort }
+  // Los libros no dependen del orden de la tabla
+  const exportFilter: InvoiceFilter = { ...range, status, tipo, q }
 
   return (
     <main className="page">
       <div className="page-actions">
         <SyncStatus sync={sync} />
-        <a className="btn btn-light" href={exportUrl('compras', filter)} download>
+        <a className="btn btn-light" href={exportUrl('compras', exportFilter)} download>
           <MicrosoftExcelLogoIcon />
           Libro de compras
         </a>
-        <a className="btn btn-light" href={exportUrl('detalle', filter)} download>
+        <a className="btn btn-light" href={exportUrl('detalle', exportFilter)} download>
           <MicrosoftExcelLogoIcon />
           Detalle en Excel
         </a>
         <SyncButton sync={sync} />
       </div>
 
-      <div className="card">
-        <div className="toolbar">
-          <label className="toolbar-search">
-            <MagnifyingGlassIcon />
+      <div className="toolbar card">
+        <label className="toolbar-search">
+          <MagnifyingGlassIcon />
+          <input
+            type="text"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="Buscar emisor, NIT, número de control o categoría…"
+            aria-label="Buscar facturas"
+          />
+        </label>
+        <select
+          className="input"
+          value={period}
+          onChange={(e) => setPeriod(e.target.value as Period)}
+          aria-label="Periodo"
+        >
+          {(Object.keys(PERIODS) as Period[]).map((p) => (
+            <option key={p} value={p}>
+              {PERIODS[p]}
+            </option>
+          ))}
+        </select>
+        {period === 'custom' && (
+          <>
             <input
-              type="text"
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              placeholder="Buscar emisor, NIT o categoría…"
-              aria-label="Buscar facturas"
+              type="date"
+              className="input"
+              value={custom.from}
+              max={custom.to || undefined}
+              onChange={(e) => setCustom({ ...custom, from: e.target.value })}
+              aria-label="Desde"
             />
-          </label>
-          <select
-            className="input"
-            value={period}
-            onChange={(e) => setPeriod(e.target.value as Period)}
-            aria-label="Periodo"
-          >
-            {(Object.keys(PERIODS) as Period[]).map((p) => (
-              <option key={p} value={p}>
-                {PERIODS[p]}
-              </option>
-            ))}
-          </select>
-          {period === 'custom' && (
-            <>
-              <input
-                type="date"
-                className="input"
-                value={custom.from}
-                max={custom.to || undefined}
-                onChange={(e) => setCustom({ ...custom, from: e.target.value })}
-                aria-label="Desde"
-              />
-              <input
-                type="date"
-                className="input"
-                value={custom.to}
-                min={custom.from || undefined}
-                onChange={(e) => setCustom({ ...custom, to: e.target.value })}
-                aria-label="Hasta"
-              />
-            </>
-          )}
-          <select
-            className="input"
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-            aria-label="Estado"
-          >
-            <option value="">Todos los estados</option>
-            {STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {STATUS[s].label}
-              </option>
-            ))}
-          </select>
-          <select
-            className="input"
-            value={tipo}
-            onChange={(e) => setTipo(e.target.value)}
-            aria-label="Tipo de documento"
-          >
-            <option value="">Todos los tipos</option>
-            {Object.keys(TIPOS_CORTOS).map((code) => (
-              <option key={code} value={code}>
-                {TIPOS_CORTOS[code]}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <InvoiceTable
-          key={JSON.stringify(filter) + sync.version}
-          filter={filter}
-          onSessionLost={onSessionLost}
-          onOpenMessage={onOpenMessage}
-        />
+            <input
+              type="date"
+              className="input"
+              value={custom.to}
+              min={custom.from || undefined}
+              onChange={(e) => setCustom({ ...custom, to: e.target.value })}
+              aria-label="Hasta"
+            />
+          </>
+        )}
+        <select
+          className="input"
+          value={tipo}
+          onChange={(e) => setTipo(e.target.value)}
+          aria-label="Tipo de documento"
+        >
+          <option value="">Todos los tipos</option>
+          {Object.keys(TIPOS_CORTOS).map((code) => (
+            <option key={code} value={code}>
+              {TIPOS_CORTOS[code]}
+            </option>
+          ))}
+        </select>
       </div>
+
+      <InvoiceTable
+        key={JSON.stringify(filter) + sync.version}
+        filter={filter}
+        onStatus={setStatus}
+        onSort={setSort}
+        onSessionLost={onSessionLost}
+        onOpenMessage={onOpenMessage}
+      />
     </main>
   )
 }
@@ -424,22 +624,31 @@ interface TableState {
   status: 'loading' | 'ready' | 'more'
   items: Invoice[]
   totals: Totals
+  byStatus: Record<string, number>
   error: string
 }
 
 function InvoiceTable(props: {
   filter: InvoiceFilter
+  onStatus: (status: string) => void
+  onSort: (sort: string) => void
   onSessionLost: () => void
   onOpenMessage: (messageId: string) => void
 }) {
-  const { filter, onSessionLost, onOpenMessage } = props
+  const { filter, onStatus, onSort, onSessionLost, onOpenMessage } = props
   const [state, setState] = useState<TableState>({
     status: 'loading',
     items: [],
     totals: { count: 0, gravado: 0, iva: 0, total: 0 },
+    byStatus: {},
     error: '',
   })
   const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [checked, setChecked] = useState<number[]>([])
+  const [busy, setBusy] = useState(false)
+  // Cada vez que cambia, se vuelven a pedir las facturas ya cargadas
+  const [reload, setReload] = useState(0)
+  const [loaded, setLoaded] = useState(PAGE)
 
   function fail(err: unknown) {
     if (isUnauthorized(err)) return onSessionLost()
@@ -450,9 +659,10 @@ function InvoiceTable(props: {
   // montar (con otra `key`) cada vez que cambia.
   useEffect(() => {
     let alive = true
-    listInvoices(filter, PAGE, 0)
+    listInvoices(filter, loaded, 0)
       .then((page) => {
-        if (alive) setState({ status: 'ready', items: page.items, totals: page.totals, error: '' })
+        if (!alive) return
+        setState({ status: 'ready', error: '', ...page })
       })
       .catch((err: unknown) => {
         if (!alive) return
@@ -463,35 +673,90 @@ function InvoiceTable(props: {
       alive = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [reload])
 
   async function loadMore() {
     setState((s) => ({ ...s, status: 'more', error: '' }))
     try {
       const page = await listInvoices(filter, PAGE, state.items.length)
       setState((s) => ({ ...s, status: 'ready', items: [...s.items, ...page.items] }))
+      setLoaded(state.items.length + page.items.length)
     } catch (err) {
       fail(err)
     }
   }
 
-  function replace(updated: Invoice) {
-    setState((s) => ({
-      ...s,
-      items: s.items.map((item) => (item.id === updated.id ? updated : item)),
-    }))
+  /** Vuelve a pedir lo que ya está en pantalla, sin mostrar "cargando". */
+  function refresh() {
+    setLoaded(Math.max(PAGE, state.items.length))
+    setReload((n) => n + 1)
+  }
+
+  async function markChecked(status: InvoiceStatus) {
+    setBusy(true)
+    try {
+      await updateInvoices(checked, status)
+      setChecked([])
+      refresh()
+    } catch (err) {
+      fail(err)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  function toggle(id: number) {
+    setChecked((ids) => (ids.includes(id) ? ids.filter((other) => other !== id) : [...ids, id]))
   }
 
   if (state.status === 'loading') {
-    return <div className="page-loading"><span className="spinner" /></div>
+    return (
+      <div className="card page-loading">
+        <span className="spinner" />
+      </div>
+    )
   }
 
-  const { items, totals } = state
+  const { items, totals, byStatus } = state
   const selected = items.find((item) => item.id === selectedId) ?? null
   const categories = [...new Set(items.map((item) => item.category).filter(Boolean))].sort()
+  const all = Object.values(byStatus).reduce((a, b) => a + b, 0)
+  const allChecked = items.length > 0 && items.every((item) => checked.includes(item.id))
+  const sort = filter.sort ?? ''
+
+  const tab = (value: string, label: string, n: number) => (
+    <button
+      key={value}
+      role="tab"
+      aria-selected={(filter.status ?? '') === value}
+      onClick={() => onStatus(value)}
+    >
+      {label}
+      <span className="tab-count">{n}</span>
+    </button>
+  )
 
   return (
     <>
+      <div className="tiles compact">
+        <div className="tile">
+          <span>Facturas</span>
+          <strong>{totals.count}</strong>
+        </div>
+        <div className="tile">
+          <span>Gravado</span>
+          <strong>{money(totals.gravado)}</strong>
+        </div>
+        <div className="tile">
+          <span>IVA</span>
+          <strong>{money(totals.iva)}</strong>
+        </div>
+        <div className="tile">
+          <span>Total</span>
+          <strong>{money(totals.total)}</strong>
+        </div>
+      </div>
+
       {state.error && (
         <p className="alert danger">
           <WarningCircleIcon />
@@ -499,94 +764,161 @@ function InvoiceTable(props: {
         </p>
       )}
 
-      {items.length === 0 && !state.error ? (
-        <Empty icon={<ReceiptIcon />}>
-          <p>No hay facturas con estos filtros. Prueba con otro periodo o trae las del correo.</p>
-        </Empty>
-      ) : (
-        <div className={selected ? 'inv-layout has-selection' : 'inv-layout'}>
-          <div className="inv-list">
-            <dl className="inv-totals">
-              <div>
-                <dt>Facturas</dt>
-                <dd>{totals.count}</dd>
-              </div>
-              <div>
-                <dt>Gravado</dt>
-                <dd>{money(totals.gravado)}</dd>
-              </div>
-              <div>
-                <dt>IVA</dt>
-                <dd>{money(totals.iva)}</dd>
-              </div>
-              <div>
-                <dt>Total</dt>
-                <dd>{money(totals.total)}</dd>
-              </div>
-            </dl>
-
-            <div className="inv-table-wrap">
-              <table className="inv-table">
-                <thead>
-                  <tr>
-                    <th>Fecha</th>
-                    <th>Emisor</th>
-                    <th className="col-tipo">Tipo</th>
-                    <th className="right col-iva">IVA</th>
-                    <th className="right">Total</th>
-                    <th>Estado</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map((item) => (
-                    <tr
-                      key={item.id}
-                      className={item.id === selectedId ? 'active' : undefined}
-                      onClick={() => setSelectedId(item.id)}
-                    >
-                      <td className="nowrap">{shortDate(item.fecha)}</td>
-                      <td>
-                        <button className="inv-name" onClick={() => setSelectedId(item.id)}>
-                          {item.emisorNombre || 'Sin nombre'}
-                        </button>
-                        {item.category && <span className="inv-category">{item.category}</span>}
-                      </td>
-                      <td className="col-tipo">{TIPOS_CORTOS[item.tipoDte] ?? tipoName(item.tipoDte)}</td>
-                      <td className="right col-iva">{money(signed(item, item.iva), item.moneda)}</td>
-                      <td className="right strong">{money(signed(item, item.total), item.moneda)}</td>
-                      <td>
-                        <StatusBadge status={item.status} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {items.length < totals.count && (
-              <button
-                className="btn btn-light more"
-                onClick={loadMore}
-                disabled={state.status === 'more'}
-              >
-                {state.status === 'more' ? 'Cargando…' : `Cargar más (${totals.count - items.length})`}
-              </button>
-            )}
-          </div>
-
-          {selected && (
-            <InvoicePanel
-              key={selected.id}
-              invoice={selected}
-              categories={categories}
-              onClose={() => setSelectedId(null)}
-              onSaved={replace}
-              onFail={fail}
-              onOpenMessage={onOpenMessage}
-            />
+      <div className="card">
+        <div className="table-head">
+          <nav className="tabs inv-tabs" role="tablist" aria-label="Estado">
+            {tab('', 'Todas', all)}
+            {STATUSES.map((s) => tab(s, `${STATUS[s].label}s`, byStatus[s] ?? 0))}
+          </nav>
+          {items.length > 0 && (
+            <span className="table-count">
+              Mostrando {items.length} de {totals.count}
+            </span>
           )}
         </div>
-      )}
+
+        {/* Acciones sobre las facturas marcadas */}
+        {checked.length > 0 && (
+          <div className="bulk">
+            <strong>
+              {checked.length} {checked.length === 1 ? 'seleccionada' : 'seleccionadas'}
+            </strong>
+            <span>Marcar como</span>
+            {STATUSES.map((s) => (
+              <button
+                key={s}
+                className="btn btn-light btn-sm"
+                disabled={busy}
+                onClick={() => markChecked(s)}
+              >
+                {STATUS[s].label}
+              </button>
+            ))}
+            <button className="btn-icon" onClick={() => setChecked([])} aria-label="Quitar selección">
+              <XIcon weight="bold" />
+            </button>
+          </div>
+        )}
+
+        {items.length === 0 && !state.error ? (
+          <Empty icon={<ReceiptIcon />}>
+            <p>No hay facturas con estos filtros. Prueba con otro periodo o trae las del correo.</p>
+          </Empty>
+        ) : (
+          <div className={selected ? 'inv-layout has-selection' : 'inv-layout'}>
+            <div className="inv-list">
+              <div className="inv-table-wrap">
+                <table className="inv-table">
+                  <thead>
+                    <tr>
+                      <th className="col-check">
+                        <input
+                          type="checkbox"
+                          checked={allChecked}
+                          onChange={() => setChecked(allChecked ? [] : items.map((item) => item.id))}
+                          aria-label="Seleccionar todas las que se ven"
+                        />
+                      </th>
+                      <SortHeader label="Emisor" orders={['emisor_asc']} sort={sort} onSort={onSort} />
+                      <SortHeader label="Fecha" orders={['', 'fecha_asc']} sort={sort} onSort={onSort} />
+                      <th className="col-tipo">Tipo</th>
+                      <th className="right col-iva">IVA</th>
+                      <SortHeader
+                        label="Total"
+                        orders={['total_desc', 'total_asc']}
+                        sort={sort}
+                        onSort={onSort}
+                        right
+                      />
+                      <th>Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.map((item) => {
+                      const name = item.emisorNombre || 'Sin nombre'
+                      return (
+                        <tr
+                          key={item.id}
+                          className={item.id === selectedId ? 'active' : undefined}
+                          onClick={() => setSelectedId(item.id)}
+                        >
+                          <td className="col-check" onClick={(e) => e.stopPropagation()}>
+                            <input
+                              type="checkbox"
+                              checked={checked.includes(item.id)}
+                              onChange={() => toggle(item.id)}
+                              aria-label={`Seleccionar la factura de ${name}`}
+                            />
+                          </td>
+                          <td>
+                            <div className="inv-issuer">
+                              <span
+                                className={`symbol ${toneOf(name)}`}
+                                style={{ '--s': '36px' } as React.CSSProperties}
+                                aria-hidden="true"
+                              >
+                                {initialsOf(name)}
+                              </span>
+                              <div>
+                                <button className="inv-name" onClick={() => setSelectedId(item.id)}>
+                                  {name}
+                                </button>
+                                <span className="inv-sub">
+                                  {item.emisorNit && `NIT ${item.emisorNit}`}
+                                  {item.category && <b>{item.category}</b>}
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="nowrap">{shortDate(item.fecha)}</td>
+                          <td className="col-tipo">
+                            <span className="badge muted">
+                              {TIPOS_CORTOS[item.tipoDte] ?? tipoName(item.tipoDte)}
+                            </span>
+                          </td>
+                          <td className="right col-iva">
+                            {money(signed(item, item.iva), item.moneda)}
+                          </td>
+                          <td className="right strong">
+                            {money(signed(item, item.total), item.moneda)}
+                          </td>
+                          <td>
+                            <StatusBadge status={item.status} />
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {items.length < totals.count && (
+                <button
+                  className="btn btn-light more"
+                  onClick={loadMore}
+                  disabled={state.status === 'more'}
+                >
+                  {state.status === 'more'
+                    ? 'Cargando…'
+                    : `Cargar más (faltan ${totals.count - items.length})`}
+                </button>
+              )}
+            </div>
+
+            {selected && (
+              <InvoicePanel
+                key={selected.id}
+                invoice={selected}
+                categories={categories}
+                onClose={() => setSelectedId(null)}
+                onSaved={refresh}
+                onFail={fail}
+                onOpenMessage={onOpenMessage}
+              />
+            )}
+          </div>
+        )}
+      </div>
     </>
   )
 }
@@ -595,7 +927,7 @@ function InvoicePanel(props: {
   invoice: Invoice
   categories: string[]
   onClose: () => void
-  onSaved: (invoice: Invoice) => void
+  onSaved: () => void
   onFail: (err: unknown) => void
   onOpenMessage: (messageId: string) => void
 }) {
@@ -607,7 +939,8 @@ function InvoicePanel(props: {
   async function save(patch: Partial<Pick<Invoice, 'status' | 'category' | 'notes'>>) {
     setSaving(true)
     try {
-      onSaved(await updateInvoice(invoice.id, patch))
+      await updateInvoice(invoice.id, patch)
+      onSaved()
     } catch (err) {
       onFail(err)
     } finally {
@@ -641,6 +974,13 @@ function InvoicePanel(props: {
         <span>Total</span>
         <strong>{money(signed(invoice, invoice.total), invoice.moneda)}</strong>
       </div>
+
+      {invoice.status !== 'pagada' && (
+        <button className="btn btn-primary" disabled={saving} onClick={() => save({ status: 'pagada' })}>
+          <CheckIcon weight="bold" />
+          Marcar como pagada
+        </button>
+      )}
 
       <div className="inv-field">
         <span className="inv-label">Estado</span>
@@ -753,38 +1093,52 @@ function fileSize(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
-/**
- * Carpeta de un archivo dentro del bucket, sin la cuenta ni el nombre:
- * "ana@x.com/2026/11/Emisor/a.pdf" → ["2026", "noviembre", "Emisor"]
- */
-function folderOf(file: SavedFile): string[] {
-  const parts = file.path.split('/').slice(1, -1)
-  if (parts.length === 0) return ['Sin carpeta']
-  if (parts[0] === 'sin-clasificar') return ['Sin clasificar']
-  const [year, month, ...rest] = parts
-  return [year, monthLabel(`${year}-${month}`, true).replace(/ de \d+$/, ''), ...rest]
-}
-
 interface Folder {
-  key: string
-  /** ["2026", "noviembre", "Emisor"] */
   path: string[]
-  files: SavedFile[]
+  /** Carpetas que hay directamente dentro. */
+  folders: number
+  /** Archivos que hay dentro, a cualquier profundidad. */
+  files: number
   size: number
 }
 
-/** Agrupa los archivos por carpeta, respetando el orden en que llegan. */
-function byFolder(files: SavedFile[]): Folder[] {
-  const folders = new Map<string, Folder>()
-  for (const file of files) {
-    const path = folderOf(file)
-    const key = path.join('/')
-    const folder = folders.get(key) ?? { key, path, files: [], size: 0 }
-    folder.files.push(file)
-    folder.size += file.size
-    folders.set(key, folder)
+/**
+ * Las carpetas que hay directamente dentro de `current`: las que tienen
+ * archivos y las que el usuario creó a mano (`created`), aunque estén vacías.
+ */
+function subfolders(files: SavedFile[], created: string[][], current: string[]): Folder[] {
+  const found = new Map<string, Folder & { children: Set<string> }>()
+  const visit = (path: string[], size: number | null) => {
+    if (path.length <= current.length || !startsWith(path, current)) return
+    const name = path[current.length]
+    const folder = found.get(name) ?? {
+      path: [...current, name],
+      folders: 0,
+      files: 0,
+      size: 0,
+      children: new Set<string>(),
+    }
+    if (size !== null) {
+      folder.files++
+      folder.size += size
+    }
+    if (path.length > current.length + 1) folder.children.add(path[current.length + 1])
+    found.set(name, folder)
   }
-  return [...folders.values()]
+  files.forEach((file) => visit(foldersOf(file), file.size))
+  created.forEach((path) => visit(path, null))
+
+  const list = [...found.values()].map((folder) => ({ ...folder, folders: folder.children.size }))
+  // Años y meses: lo más reciente primero. Las demás: por orden alfabético.
+  const numeric = list.every((folder) => /^\d+$/.test(folder.path[folder.path.length - 1]))
+  return list.sort((a, b) => {
+    const [x, y] = [a.path[a.path.length - 1], b.path[b.path.length - 1]]
+    return numeric ? y.localeCompare(x) : x.localeCompare(y, 'es')
+  })
+}
+
+function count(n: number, one: string, many: string) {
+  return `${n} ${n === 1 ? one : many}`
 }
 
 function FileGlyph({ name }: { name: string }) {
@@ -793,7 +1147,11 @@ function FileGlyph({ name }: { name: string }) {
   return <FileIcon />
 }
 
-/** Los archivos guardados en el bucket: primero las carpetas, luego su contenido. */
+/**
+ * Los archivos guardados en el bucket, como un explorador de carpetas. Las
+ * carpetas por año, mes y emisor las crea la app; el usuario puede crear las
+ * suyas y mover archivos entre ellas.
+ */
 export function FilesView(props: {
   onSessionLost: () => void
   onOpenMessage: (messageId: string) => void
@@ -801,8 +1159,16 @@ export function FilesView(props: {
   const { onSessionLost, onOpenMessage } = props
   const [cloud, setCloud] = useState<Cloud | null>(null)
   const [error, setError] = useState('')
-  const [openKey, setOpenKey] = useState<string | null>(null)
+  const [current, setCurrent] = useState<string[]>([])
+  const [search, setSearch] = useState('')
   const [confirming, setConfirming] = useState<number | null>(null)
+  const [moving, setMoving] = useState<SavedFile | null>(null)
+  const [newFolder, setNewFolder] = useState<string | null>(null)
+
+  function fail(err: unknown) {
+    if (isUnauthorized(err)) onSessionLost()
+    else setError(errorText(err))
+  }
 
   useEffect(() => {
     let alive = true
@@ -818,15 +1184,14 @@ export function FilesView(props: {
     }
   }, [onSessionLost])
 
-  async function remove(id: number) {
+  /** Ejecuta un cambio y vuelve a leer lo guardado. */
+  async function change(action: () => Promise<unknown>) {
+    setError('')
     try {
-      await deleteFile(id)
-      setCloud((data) => data && { ...data, files: data.files.filter((file) => file.id !== id) })
+      await action()
+      setCloud(await getCloud())
     } catch (err) {
-      if (isUnauthorized(err)) onSessionLost()
-      else setError(errorText(err))
-    } finally {
-      setConfirming(null)
+      fail(err)
     }
   }
 
@@ -847,9 +1212,42 @@ export function FilesView(props: {
     )
   }
 
-  const folders = byFolder(cloud.files)
-  // Si se borra el último archivo de la carpeta abierta, se vuelve a la lista
-  const open = folders.find((folder) => folder.key === openKey) ?? null
+  const created = cloud.folders.map((folder) => folder.split('/'))
+  const exists = (path: string[]) =>
+    cloud.files.some((file) => startsWith(foldersOf(file), path)) ||
+    created.some((folder) => startsWith(folder, path))
+
+  // Si la carpeta abierta ya no existe, se sube hasta una que sí
+  let here = current
+  while (here.length > 0 && !exists(here)) here = here.slice(0, -1)
+
+  const q = search.trim().toLowerCase()
+  const searching = q !== ''
+  const inside = cloud.files.filter((file) => startsWith(foldersOf(file), here))
+
+  // Al buscar se muestran los archivos que coinciden, estén en la carpeta que estén
+  const folders = searching ? [] : subfolders(cloud.files, created, here)
+  const files = searching
+    ? inside.filter((file) => `${file.path} ${file.mailSubject}`.toLowerCase().includes(q))
+    : inside.filter((file) => foldersOf(file).length === here.length)
+
+  const empty = !searching && folders.length === 0 && files.length === 0
+  // Solo se pueden borrar las carpetas que creó el usuario
+  const removable = empty && cloud.folders.includes(here.join('/'))
+
+  function open(path: string[]) {
+    setCurrent(path)
+    setSearch('')
+    setConfirming(null)
+    setNewFolder(null)
+  }
+
+  function submitFolder(e: { preventDefault(): void }) {
+    e.preventDefault()
+    const name = (newFolder ?? '').trim()
+    setNewFolder(null)
+    if (name) change(() => createFolder([...here, name].join('/')))
+  }
 
   return (
     <main className="page">
@@ -860,67 +1258,148 @@ export function FilesView(props: {
         </p>
       )}
 
-      {/* Dónde estamos: bucket › carpeta */}
-      <nav className="crumb" aria-label="Ubicación">
-        {open && (
-          <button className="btn-icon" onClick={() => setOpenKey(null)} aria-label="Volver a las carpetas">
-            <ArrowLeftIcon weight="bold" />
+      <div className="crumb-bar">
+        {/* Dónde estamos: bucket › carpeta › carpeta */}
+        <nav className="crumb" aria-label="Ubicación">
+          {here.length > 0 && (
+            <button
+              className="btn-icon"
+              onClick={() => open(here.slice(0, -1))}
+              aria-label="Subir una carpeta"
+            >
+              <ArrowLeftIcon weight="bold" />
+            </button>
+          )}
+          <button className="crumb-item" onClick={() => open([])} disabled={here.length === 0}>
+            <CloudIcon weight="fill" />
+            {cloud.bucket}
           </button>
-        )}
-        <button className="crumb-item" onClick={() => setOpenKey(null)} disabled={!open}>
-          <CloudIcon weight="fill" />
-          {cloud.bucket || 'Archivos guardados'}
-        </button>
-        {open?.path.map((name, i) => (
-          <span className="crumb-item" key={i}>
-            {name}
-          </span>
-        ))}
-        <span className="crumb-count">
-          {open
-            ? `${open.files.length} ${open.files.length === 1 ? 'archivo' : 'archivos'} · ${fileSize(open.size)}`
-            : `${folders.length} ${folders.length === 1 ? 'carpeta' : 'carpetas'} · ${cloud.files.length} ${cloud.files.length === 1 ? 'archivo' : 'archivos'}`}
-        </span>
-      </nav>
+          {here.map((_, i) => {
+            const path = here.slice(0, i + 1)
+            return (
+              <button
+                className="crumb-item"
+                key={path.join('/')}
+                onClick={() => open(path)}
+                disabled={i === here.length - 1}
+              >
+                {folderLabel(path)}
+              </button>
+            )
+          })}
+        </nav>
 
-      {folders.length === 0 && (
+        <div className="crumb-tools">
+          <label className="toolbar-search crumb-search">
+            <MagnifyingGlassIcon />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={here.length ? 'Buscar en esta carpeta…' : 'Buscar archivo o emisor…'}
+              aria-label="Buscar archivos"
+            />
+          </label>
+          <button className="btn btn-primary" onClick={() => setNewFolder('')}>
+            <FolderSimplePlusIcon weight="bold" />
+            Nueva carpeta
+          </button>
+        </div>
+      </div>
+
+      {newFolder !== null && (
+        <form className="card new-folder" onSubmit={submitFolder}>
+          <FolderSimplePlusIcon />
+          <input
+            className="input"
+            autoFocus
+            value={newFolder}
+            maxLength={80}
+            placeholder={
+              here.length
+                ? `Nombre de la carpeta nueva dentro de “${folderLabel(here)}”`
+                : 'Nombre de la carpeta nueva'
+            }
+            onChange={(e) => setNewFolder(e.target.value)}
+            aria-label="Nombre de la carpeta nueva"
+          />
+          <button type="submit" className="btn btn-primary" disabled={!newFolder.trim()}>
+            Crear
+          </button>
+          <button type="button" className="btn btn-light" onClick={() => setNewFolder(null)}>
+            Cancelar
+          </button>
+        </form>
+      )}
+
+      <p className="sync-note">
+        {searching
+          ? count(files.length, 'archivo encontrado', 'archivos encontrados')
+          : [
+              folders.length > 0 && count(folders.length, 'carpeta', 'carpetas'),
+              count(inside.length, 'archivo', 'archivos'),
+              fileSize(inside.reduce((sum, file) => sum + file.size, 0)),
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+      </p>
+
+      {empty && (
         <div className="card">
-          <Empty icon={<CloudIcon />}>
+          <Empty icon={here.length ? <FolderSimpleIcon /> : <CloudIcon />}>
             <p>
-              Aún no has guardado archivos. Abre un correo y usa “Guardar en la nube” en el PDF o
-              el JSON que quieras conservar.
+              {here.length
+                ? 'Esta carpeta está vacía. Guarda aquí un archivo desde un correo, o mueve uno que ya tengas.'
+                : 'Aún no has guardado archivos. Abre un correo y usa “Guardar en la nube” en el PDF o el JSON que quieras conservar.'}
             </p>
+            {removable && (
+              <button
+                className="btn btn-light"
+                onClick={() => change(() => deleteFolder(here.join('/')))}
+              >
+                <TrashIcon />
+                Eliminar esta carpeta
+              </button>
+            )}
           </Empty>
         </div>
       )}
 
-      {/* Carpetas: una cajita por emisor y mes */}
-      {!open && folders.length > 0 && (
-        <div className="boxes">
-          {folders.map((folder) => {
-            const name = folder.path[folder.path.length - 1]
-            const where = folder.path.slice(0, -1).reverse().join(' ')
-            return (
-              <button className="box" key={folder.key} onClick={() => setOpenKey(folder.key)}>
-                <span className="box-icon">
-                  <FolderSimpleIcon weight="fill" />
-                </span>
-                <strong title={name}>{name}</strong>
-                {where && <span className="box-where">{where}</span>}
-                <span className="box-meta">
-                  {folder.files.length} {folder.files.length === 1 ? 'archivo' : 'archivos'} ·{' '}
-                  {fileSize(folder.size)}
-                </span>
-              </button>
-            )
-          })}
+      {searching && files.length === 0 && (
+        <div className="card">
+          <Empty icon={<MagnifyingGlassIcon />}>
+            <p>Ningún archivo coincide con “{search.trim()}”.</p>
+          </Empty>
         </div>
       )}
 
-      {/* Contenido de la carpeta abierta: una cajita por archivo */}
-      {open && (
+      {folders.length > 0 && (
         <div className="boxes">
-          {open.files.map((file) => (
+          {folders.map((folder) => (
+            <button className="box" key={folder.path.join('/')} onClick={() => open(folder.path)}>
+              <span className="box-icon">
+                <FolderSimpleIcon weight="fill" />
+              </span>
+              <strong title={folderLabel(folder.path)}>{folderLabel(folder.path)}</strong>
+              <span className="box-meta">
+                {folder.files === 0 && folder.folders === 0
+                  ? 'Vacía'
+                  : [
+                      folder.folders > 0 && count(folder.folders, 'carpeta', 'carpetas'),
+                      count(folder.files, 'archivo', 'archivos'),
+                      fileSize(folder.size),
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {files.length > 0 && (
+        <div className="boxes">
+          {files.map((file) => (
             <div className="box file-box" key={file.id}>
               <a
                 className="box-open"
@@ -934,6 +1413,9 @@ export function FilesView(props: {
                 </span>
                 <strong>{file.filename}</strong>
               </a>
+              {searching && (
+                <span className="box-where">{folderTrail(foldersOf(file)) || cloud.bucket}</span>
+              )}
               <span className="box-meta">
                 {fileSize(file.size)} · guardado el{' '}
                 {new Date(file.createdAt).toLocaleDateString('es-SV', {
@@ -945,7 +1427,13 @@ export function FilesView(props: {
 
               {confirming === file.id ? (
                 <div className="box-actions">
-                  <button className="btn btn-primary btn-sm" onClick={() => remove(file.id)}>
+                  <button
+                    className="btn btn-primary btn-sm"
+                    onClick={() => {
+                      setConfirming(null)
+                      change(() => deleteFile(file.id))
+                    }}
+                  >
                     Eliminar
                   </button>
                   <button className="btn btn-light btn-sm" onClick={() => setConfirming(null)}>
@@ -963,6 +1451,14 @@ export function FilesView(props: {
                   >
                     <DownloadSimpleIcon />
                   </a>
+                  <button
+                    className="btn-icon"
+                    onClick={() => setMoving(file)}
+                    title="Mover a otra carpeta"
+                    aria-label={`Mover ${file.filename} a otra carpeta`}
+                  >
+                    <FoldersIcon />
+                  </button>
                   <button
                     className="btn-icon"
                     onClick={() => onOpenMessage(file.messageId)}
@@ -984,6 +1480,21 @@ export function FilesView(props: {
             </div>
           ))}
         </div>
+      )}
+
+      {moving && (
+        <FolderPicker
+          title={`Mover “${moving.filename}”`}
+          confirm="Mover aquí"
+          start={foldersOf(moving).join('/')}
+          onPick={(folder) => {
+            const file = moving
+            setMoving(null)
+            change(() => moveFile(file.id, folder ?? ''))
+          }}
+          onClose={() => setMoving(null)}
+          onSessionLost={onSessionLost}
+        />
       )}
     </main>
   )
