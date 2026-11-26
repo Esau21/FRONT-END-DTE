@@ -1,4 +1,4 @@
-# DTE Lector — front-end
+# Bookeep — front-end
 
 Aplicación web para leer los Documentos Tributarios Electrónicos (DTE) de El Salvador que llegan por correo. Se conecta a una cuenta de Gmail (solo lectura), encuentra los correos con un DTE adjunto y muestra el documento como factura en lugar de JSON.
 
@@ -7,6 +7,11 @@ Es el front-end de la API de Go [`SMPT-DTE`](https://github.com/Esau21/Go-smpt-d
 ## Qué hace
 
 - **Inicio de sesión con Google**, delegado por completo al backend.
+- **Resumen** de los últimos 12 meses: compras e IVA del mes, compras por mes y emisores principales.
+- **Facturas** guardadas desde el correo, con filtros, estado (pendiente, revisada, pagada), categoría y notas.
+- **Excel:** libro de compras y detalle de facturas del periodo elegido.
+- **Guardar en la nube:** sube el PDF o JSON de un correo a un bucket, ordenado por cuenta, año, mes y emisor, y lo lista por carpeta en "Archivos en la nube".
+- **Verificar en Hacienda** e **imprimir** cada documento.
 - **Bandeja** con dos vistas: solo correos con DTE (`.json` adjunto) o todos los correos.
 - **Búsqueda** en vivo, con filtros por remitente o asunto, por fecha y por PDF adjunto, y búsquedas recientes. La tecla `/` lleva el cursor al buscador.
 - **Detalle del correo** en pestañas:
@@ -76,6 +81,16 @@ Todas bajo `/api/v1/mail`:
 
 La búsqueda y los filtros se traducen en el front a la sintaxis de búsqueda de Gmail y se envían en `q`.
 
+Las facturas guardadas usan otro grupo de rutas, bajo `/api/v1/invoices`, y necesitan que el backend tenga su base de datos (Postgres) disponible:
+
+| Método  | Ruta       | Uso                                                              |
+| ------- | ---------- | ---------------------------------------------------------------- |
+| `POST`  | `/sync`    | Revisa una página de correos y guarda los DTE nuevos             |
+| `GET`   | ``         | Lista de facturas con filtros (`from`, `to`, `status`, `tipo`, `q`) y sus sumas |
+| `GET`   | `/summary` | Totales por mes, emisores principales y facturas por estado      |
+| `GET`   | `/export`  | Excel: `kind=compras` (libro de compras) o `kind=detalle`        |
+| `PATCH` | `/:id`     | Cambia estado, categoría o notas de una factura                  |
+
 ## Docker
 
 Desde la raíz del repositorio (la carpeta que contiene `web/`):
@@ -111,7 +126,7 @@ web/
 └── nginx.conf.template       Sirve la app y reenvía /api a la API
 ```
 
-Tecnologías: React 19, TypeScript, Vite, [Phosphor Icons](https://phosphoricons.com) y la fuente Inter.
+Tecnologías: React 19, TypeScript, Vite, [Phosphor Icons](https://phosphoricons.com) y la fuente Plus Jakarta Sans.
 
 ## Notas de seguridad
 

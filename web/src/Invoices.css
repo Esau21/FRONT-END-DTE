@@ -1,0 +1,752 @@
+/* =====================================================================
+   Páginas de Resumen y Facturas
+   ===================================================================== */
+
+.page {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 6px 28px 28px;
+  overflow-y: auto;
+}
+
+/* Una tarjeta dentro de una página crece con su contenido */
+.page > .card,
+.panels > .card {
+  flex: none;
+  overflow: visible;
+}
+
+.page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.page-loading {
+  display: grid;
+  place-items: center;
+  min-height: 220px;
+}
+
+.sync-note {
+  margin: 0 auto 0 0;
+  font-size: 13.5px;
+  color: var(--muted);
+}
+
+.sync-note.alert {
+  padding: 8px 12px;
+}
+
+.spin {
+  animation: spin 0.9s linear infinite;
+}
+
+/* ---------- cifras principales ---------- */
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 16px;
+}
+
+.tile {
+  display: grid;
+  gap: 4px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  text-align: left;
+}
+
+.tile span {
+  font-size: 13.5px;
+  color: var(--muted);
+}
+
+.tile span::first-letter {
+  text-transform: uppercase;
+}
+
+.tile strong {
+  color: var(--ink);
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.tile small {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.tile-link {
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.tile-link:hover {
+  border-color: var(--edge);
+}
+
+/* ---------- paneles ---------- */
+
+.panels {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 16px;
+}
+
+.panel {
+  padding: 22px;
+}
+
+.panel h2 {
+  font-size: 17px;
+}
+
+.panel-sub {
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* ---------- gráfico de barras por mes ---------- */
+
+.chart {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  height: 230px;
+  margin-top: 22px;
+}
+
+.chart-col {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  border-radius: 8px;
+  outline: none;
+}
+
+.chart-track {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  border-bottom: 1px solid var(--line);
+}
+
+.chart-bar {
+  width: min(26px, 62%);
+  min-height: 2px;
+  border-radius: 4px 4px 0 0;
+  background: var(--bar);
+  opacity: 0.75;
+  transition: opacity 0.12s;
+}
+
+.chart-col:hover .chart-bar,
+.chart-col:focus-visible .chart-bar {
+  opacity: 1;
+}
+
+.chart-col:focus-visible {
+  box-shadow: 0 0 0 2px var(--edge);
+}
+
+.chart-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.chart-label.now {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.chart-tip {
+  position: absolute;
+  bottom: calc(100% - 4px);
+  left: 50%;
+  z-index: 5;
+  display: none;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 12px 28px -12px rgba(35, 35, 45, 0.35);
+  font-size: 12.5px;
+  color: var(--muted);
+  white-space: nowrap;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.chart-tip span:first-child::first-letter {
+  text-transform: uppercase;
+}
+
+.chart-tip strong {
+  color: var(--ink);
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-col:hover .chart-tip,
+.chart-col:focus-visible .chart-tip {
+  display: grid;
+}
+
+/* En los extremos, el globo se alinea al borde para no salirse */
+.chart-col:nth-child(-n + 2) .chart-tip {
+  left: 0;
+  transform: none;
+}
+
+.chart-col:nth-last-child(-n + 2) .chart-tip {
+  left: auto;
+  right: 0;
+  transform: none;
+}
+
+/* ---------- emisores principales ---------- */
+
+.ranking {
+  list-style: none;
+  display: grid;
+  gap: 16px;
+  margin: 20px 0 0;
+  padding: 0;
+}
+
+.ranking-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ranking-row span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.ranking-row strong {
+  flex: none;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.ranking-track {
+  height: 8px;
+  margin: 6px 0 4px;
+  border-radius: 4px;
+  background: var(--soft);
+}
+
+.ranking-bar {
+  height: 100%;
+  min-width: 4px;
+  border-radius: 4px;
+  background: var(--bar);
+  opacity: 0.75;
+}
+
+.ranking small {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+/* =====================================================================
+   Facturas
+   ===================================================================== */
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.toolbar .input {
+  width: auto;
+}
+
+.toolbar-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 220px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.toolbar-search:focus-within {
+  border-color: var(--edge);
+  box-shadow: 0 0 0 3px var(--lavender);
+}
+
+.toolbar-search svg {
+  font-size: 17px;
+  flex: none;
+  color: var(--muted);
+}
+
+.toolbar-search input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 0;
+  border: 0;
+  outline: none;
+  background: none;
+  color: var(--ink);
+}
+
+.inv-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.inv-layout.has-selection {
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+}
+
+.inv-list {
+  min-width: 0;
+}
+
+.inv-totals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.inv-totals dt {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.inv-totals dd {
+  color: var(--ink);
+  font-size: 18px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.inv-table-wrap {
+  overflow-x: auto;
+}
+
+.inv-table th {
+  white-space: nowrap;
+}
+
+.inv-table tbody tr {
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.inv-table tbody tr:hover {
+  background: var(--soft);
+}
+
+.inv-table tbody tr.active {
+  background: var(--lavender);
+}
+
+.inv-table td {
+  vertical-align: middle;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.inv-name {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.inv-name.light {
+  font-weight: 500;
+  color: var(--text);
+}
+
+a.inv-name {
+  text-decoration: none;
+}
+
+a.inv-name:hover,
+.inv-name.light:hover {
+  color: var(--edge);
+}
+
+.files-table tbody tr {
+  cursor: default;
+}
+
+.files-where {
+  margin: 0;
+}
+
+.files-where strong {
+  color: var(--ink);
+}
+
+/* Fila que encabeza cada carpeta */
+.files-folder th {
+  padding: 10px 16px;
+  border-top: 1px solid var(--line);
+  background: var(--soft);
+  color: var(--ink);
+  font-size: 13.5px;
+  font-weight: 700;
+  text-align: left;
+  text-transform: none;
+}
+
+.files-folder svg {
+  margin-right: 8px;
+  font-size: 17px;
+  vertical-align: -3px;
+  color: var(--muted);
+}
+
+.files-folder span + span::before {
+  content: '›';
+  margin: 0 8px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.files-folder span::first-letter {
+  text-transform: uppercase;
+}
+
+.files-folder small {
+  margin-left: 12px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.files-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.inv-category {
+  display: inline-block;
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+/* ---------- panel de una factura ---------- */
+
+.inv-panel {
+  display: grid;
+  align-content: start;
+  gap: 18px;
+  padding: 20px;
+  border-left: 1px solid var(--line);
+}
+
+.inv-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.inv-panel-head h2 {
+  margin: 2px 0;
+  font-size: 18px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.inv-kicker,
+.inv-label,
+.inv-amounts dt,
+.inv-ids dt {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.inv-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--mint);
+  color: var(--mint-ink);
+  font-weight: 600;
+}
+
+.inv-total strong {
+  font-size: 22px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.inv-field {
+  display: grid;
+  gap: 6px;
+}
+
+.inv-label {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.inv-panel textarea {
+  resize: vertical;
+  font: inherit;
+}
+
+.inv-saving {
+  margin-top: -10px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.inv-amounts,
+.inv-ids {
+  display: grid;
+  gap: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.inv-amounts div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.inv-amounts dd,
+.inv-ids dd {
+  color: var(--ink);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.inv-actions,
+.dte-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* =====================================================================
+   Responsive
+   ===================================================================== */
+
+@media screen and (max-width: 1199px) {
+  .page {
+    padding: 6px 20px 20px;
+  }
+}
+
+@media screen and (max-width: 980px) {
+  .panels {
+    grid-template-columns: 1fr;
+  }
+
+  /* El panel de la factura ocupa el lugar de la tabla */
+  .inv-layout.has-selection {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .inv-layout.has-selection .inv-list {
+    display: none;
+  }
+
+  .inv-panel {
+    border-left: 0;
+  }
+}
+
+@media screen and (max-width: 860px) {
+  .page {
+    gap: 14px;
+    padding: 0 0 20px;
+  }
+
+  .page-actions {
+    padding: 0 16px;
+  }
+
+  .page-actions .btn {
+    flex: 1 1 auto;
+  }
+
+  .sync-note {
+    flex-basis: 100%;
+  }
+
+  .tiles {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    padding: 0 16px;
+  }
+
+  .tile {
+    padding: 14px;
+  }
+
+  .tile strong {
+    font-size: 21px;
+  }
+
+  .panels {
+    gap: 0;
+  }
+
+  /* La tabla de facturas conserva sus columnas; se ocultan las secundarias */
+  .inv-table-wrap thead {
+    display: table-header-group;
+  }
+
+  .inv-table-wrap tr {
+    display: table-row;
+    padding: 0;
+    border: 0;
+  }
+
+  .inv-table-wrap tr:first-child {
+    border: 0;
+  }
+
+  .inv-table-wrap td,
+  .inv-table-wrap td:nth-child(n) {
+    display: table-cell;
+    padding: 12px 10px;
+    border-top: 1px solid var(--line);
+    font-size: inherit;
+    color: inherit;
+  }
+
+  .inv-table-wrap td:nth-child(n)::before {
+    content: none;
+  }
+
+  .inv-table-wrap td.right {
+    text-align: right;
+  }
+
+  .inv-table-wrap .col-tipo,
+  .inv-table-wrap .col-iva {
+    display: none;
+  }
+
+  .inv-table th {
+    padding: 10px;
+  }
+}
+
+@media screen and (max-width: 480px) {
+  .chart-label {
+    font-size: 10px;
+  }
+}
+
+/* =====================================================================
+   Impresión: solo el documento, en claro
+   ===================================================================== */
+
+@media print {
+  :root,
+  :root[data-theme="dark"] {
+    --bg: #fff;
+    --surface: #fff;
+    --soft: #f1f1f1;
+    --line: #d0d0d2;
+    --ink: #000;
+    --text: #222;
+    --muted: #555;
+    --mint: #f1f1f1;
+    --mint-ink: #000;
+    --shadow: none;
+    color-scheme: light;
+  }
+
+  @page {
+    margin: 14mm;
+  }
+
+  /* Los contenedores dejan de recortar y de ocupar la pantalla completa */
+  .app,
+  .wrapper,
+  .content,
+  .content > .detail-card,
+  .detail {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    overflow: visible !important;
+  }
+
+  /* Todo lo que no es la factura seleccionada se oculta */
+  .app > .sidebar,
+  .app > .overlay,
+  .wrapper > .header,
+  .wrapper > .page,
+  .content > .list-card,
+  .detail > :not(.dte),
+  .dte > .dte-actions {
+    display: none !important;
+  }
+
+  .dte {
+    margin: 0 !important;
+  }
+
+  .party,
+  .dte-total,
+  .summary,
+  tr {
+    break-inside: avoid;
+  }
+}

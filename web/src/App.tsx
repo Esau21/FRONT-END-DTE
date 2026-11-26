@@ -7,6 +7,7 @@ import {
   BracketsCurlyIcon,
   BuildingsIcon,
   CalendarBlankIcon,
+  ChartBarIcon,
   ClockCounterClockwiseIcon,
   DownloadSimpleIcon,
   EnvelopeSimpleIcon,
@@ -16,10 +17,13 @@ import {
   FileTextIcon,
   ListIcon,
   MagnifyingGlassIcon,
+  MoonIcon,
+  PrinterIcon,
   ReceiptIcon,
-  SealCheckIcon,
   ShieldCheckIcon,
   SignOutIcon,
+  SunIcon,
+  TableIcon,
   TrayIcon,
   UserCircleIcon,
   WarningCircleIcon,
@@ -32,29 +36,20 @@ import {
   getDte,
   getMe,
   getMessage,
+  listFiles,
+  saveFile,
   isUnauthorized,
   listMessages,
   logout,
 } from './api'
 import type { Attachment, Dte, Json, Me, MessageDetail, MessageSummary } from './api'
+import { Dashboard, FilesView, InvoicesView } from './Invoices'
+import { TIPOS_DTE, haciendaUrl, money } from './format'
+import { useSync } from './useSync'
 import './App.css'
 
 const PAGE_SIZE = 15
 const DTE_FILTER = 'filename:json'
-
-const TIPOS_DTE: Record<string, string> = {
-  '01': 'Factura',
-  '03': 'Comprobante de crédito fiscal',
-  '04': 'Nota de remisión',
-  '05': 'Nota de crédito',
-  '06': 'Nota de débito',
-  '07': 'Comprobante de retención',
-  '08': 'Comprobante de liquidación',
-  '09': 'Documento contable de liquidación',
-  '11': 'Factura de exportación',
-  '14': 'Factura de sujeto excluido',
-  '15': 'Comprobante de donación',
-}
 
 /* ---------- helpers ---------- */
 
@@ -72,7 +67,7 @@ function initials(name: string) {
   return ((words[0]?.[0] ?? '?') + (words[1]?.[0] ?? '')).toUpperCase()
 }
 
-const TONES = ['primary', 'success', 'info', 'warning', 'danger'] as const
+const TONES = ['lavender', 'sky', 'mint'] as const
 
 /** Tono estable por remitente, para distinguirlos de un vistazo. */
 function tone(value: string) {
@@ -94,15 +89,6 @@ function formatDate(value: string, long = false) {
     month: 'short',
     year: date.getFullYear() === today.getFullYear() ? undefined : 'numeric',
   })
-}
-
-function money(value: unknown, currency = 'USD') {
-  if (typeof value !== 'number') return '—'
-  try {
-    return new Intl.NumberFormat('es-SV', { style: 'currency', currency }).format(value)
-  } catch {
-    return value.toFixed(2)
-  }
 }
 
 function text(value: unknown) {
@@ -283,7 +269,7 @@ function SearchBar(props: {
   return (
     <div className="search-wrap">
       <form className="search" onSubmit={submit}>
-        <MagnifyingGlassIcon weight="duotone" />
+        <MagnifyingGlassIcon />
         <input
           ref={input}
           type="text"
@@ -323,7 +309,7 @@ function SearchBar(props: {
         aria-label="Filtros"
         title="Filtros"
       >
-        <FunnelIcon weight="duotone" />
+        <FunnelIcon />
         {active > 0 && <span className="count">{active}</span>}
       </button>
 
@@ -334,7 +320,7 @@ function SearchBar(props: {
           {recent.map((term) => (
             <div key={term} className="recent-item">
               <button type="button" onClick={() => pick(term)}>
-                <ClockCounterClockwiseIcon weight="duotone" />
+                <ClockCounterClockwiseIcon />
                 <span>{term}</span>
               </button>
               <button
@@ -507,15 +493,49 @@ function Brand() {
   return (
     <span className="brand">
       <svg viewBox="0 0 32 32" aria-hidden="true">
-        <rect width="32" height="32" rx="8" fill="var(--primary)" />
-        <path d="M10 7.5h8.2L23 12.3V23a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 9 23V9a1.5 1.5 0 0 1 1-1.5Z" fill="#fff" />
-        <path d="M18 7.5V11a1.5 1.5 0 0 0 1.5 1.5H23" fill="#fff" opacity=".55" />
-        <path d="m12.6 18.4 2.3 2.3 4.6-4.9" fill="none" stroke="var(--primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        <rect width="32" height="32" rx="10" fill="var(--violet)" />
+        <path
+          d="M11 8.5h7l4 4V22a1.5 1.5 0 0 1-1.5 1.5h-9.5A1.5 1.5 0 0 1 9.5 22V10A1.5 1.5 0 0 1 11 8.5Z"
+          fill="#fff"
+          stroke="#111"
+          strokeWidth="1.5"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M13 15h6M13 18.5h4"
+          stroke="#111"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+        />
       </svg>
       <span className="brand-name">
-        DTE<span>Lector</span>
+        BOOKEEP
       </span>
     </span>
+  )
+}
+
+/** Isotipo de Google Cloud (la nube del logotipo oficial, sin el texto). */
+function GoogleCloudIcon() {
+  return (
+    <svg viewBox="0 0 35 27" width="22" height="17" aria-hidden="true">
+      <path
+        fill="#ea4335"
+        d="M21.85,7.41l1,0,2.85-2.85.14-1.21A12.81,12.81,0,0,0,5,9.6a1.55,1.55,0,0,1,1-.06l5.7-.94s.29-.48.44-.45a7.11,7.11,0,0,1,9.73-.74Z"
+      />
+      <path
+        fill="#4285f4"
+        d="M29.76,9.6a12.84,12.84,0,0,0-3.87-6.24l-4,4A7.11,7.11,0,0,1,24.5,13v.71a3.56,3.56,0,1,1,0,7.12H17.38l-.71.72v4.27l.71.71H24.5A9.26,9.26,0,0,0,29.76,9.6Z"
+      />
+      <path
+        fill="#34a853"
+        d="M10.25,26.49h7.12v-5.7H10.25a3.54,3.54,0,0,1-1.47-.32l-1,.31L4.91,23.63l-.25,1A9.21,9.21,0,0,0,10.25,26.49Z"
+      />
+      <path
+        fill="#fbbc05"
+        d="M10.25,8A9.26,9.26,0,0,0,4.66,24.6l4.13-4.13a3.56,3.56,0,1,1,4.71-4.71l4.13-4.13A9.25,9.25,0,0,0,10.25,8Z"
+      />
+    </svg>
   )
 }
 
@@ -553,6 +573,52 @@ function Blank({ icon, children }: { icon: ReactNode; children: ReactNode }) {
   )
 }
 
+/* ---------- tema claro / oscuro ---------- */
+
+type Theme = 'light' | 'dark'
+
+const THEME_KEY = 'dte.theme'
+
+/** El tema guardado; si no hay, el que use el sistema. */
+function initialTheme(): Theme {
+  try {
+    const saved = localStorage.getItem(THEME_KEY)
+    if (saved === 'light' || saved === 'dark') return saved
+  } catch {
+    // sin almacenamiento disponible: se usa el tema del sistema
+  }
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+}
+
+function useTheme() {
+  const [theme, setTheme] = useState<Theme>(initialTheme)
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+  }, [theme])
+
+  function toggle() {
+    const next: Theme = theme === 'dark' ? 'light' : 'dark'
+    setTheme(next)
+    try {
+      localStorage.setItem(THEME_KEY, next)
+    } catch {
+      // sin almacenamiento disponible: el tema dura solo esta visita
+    }
+  }
+
+  return [theme, toggle] as const
+}
+
+function ThemeToggle({ theme, onToggle }: { theme: Theme; onToggle: () => void }) {
+  const label = theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'
+  return (
+    <button className="btn-icon theme-toggle" onClick={onToggle} title={label} aria-label={label}>
+      {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+    </button>
+  )
+}
+
 /* ---------- app ---------- */
 
 type Auth =
@@ -564,6 +630,8 @@ type Auth =
 export default function App() {
   const [auth, setAuth] = useState<Auth>({ status: 'loading' })
   const [attempt, setAttempt] = useState(0)
+  const [theme, toggleTheme] = useTheme()
+  const themeToggle = <ThemeToggle theme={theme} onToggle={toggleTheme} />
 
   useEffect(() => {
     let alive = true
@@ -601,13 +669,23 @@ export default function App() {
   }
 
   if (auth.status === 'in') {
-    return <Shell me={auth.me} onLogout={handleLogout} onSessionLost={onSessionLost} />
+    return (
+      <Shell
+        me={auth.me}
+        themeToggle={themeToggle}
+        onLogout={handleLogout}
+        onSessionLost={onSessionLost}
+      />
+    )
   }
 
   return (
     <div className="auth">
       <div className="auth-form">
-        <Brand />
+        <div className="auth-top">
+          <Brand />
+          {themeToggle}
+        </div>
         {auth.status === 'error' ? (
           <div className="auth-box">
             <h1>Sin conexión</h1>
@@ -625,47 +703,22 @@ export default function App() {
           </div>
         ) : (
           <div className="auth-box">
-            <h1>Iniciar sesión</h1>
-            <p className="lead">Conecta tu correo para consultar tus documentos tributarios.</p>
+            <h1>Tus facturas, siempre contigo.</h1>
+            <p className="lead">
+              Conecta tu correo y revisa las facturas y comprobantes que recibes, con sus
+              totales y su PDF, en un solo lugar.
+            </p>
             <a className="btn btn-outline btn-lg" href={LOGIN_URL}>
               <GoogleIcon />
               Continuar con Google
             </a>
             <p className="hint">
-              <ShieldCheckIcon weight="duotone" />
+              <ShieldCheckIcon />
               Solo lectura. No se envía ni se modifica ningún correo.
             </p>
           </div>
         )}
-        <span className="auth-foot">DTE Lector · El Salvador</span>
-      </div>
-
-      <div className="auth-aside">
-        <h2>Tus DTE, sin abrir un solo JSON</h2>
-        <p>
-          Facturas, créditos fiscales y notas de crédito que llegan a tu correo, presentados como
-          documentos listos para revisar.
-        </p>
-        <ul>
-          <li>
-            <span className="aside-icon">
-              <TrayIcon weight="duotone" />
-            </span>
-            Encuentra los correos que traen un DTE adjunto
-          </li>
-          <li>
-            <span className="aside-icon">
-              <ReceiptIcon weight="duotone" />
-            </span>
-            Emisor, receptor, detalle y totales en una sola vista
-          </li>
-          <li>
-            <span className="aside-icon">
-              <SealCheckIcon weight="duotone" />
-            </span>
-            Verifica el sello de recepción de Hacienda
-          </li>
-        </ul>
+        <span className="auth-foot">Bookeep · Hecho en El Salvador</span>
       </div>
     </div>
   )
@@ -673,15 +726,38 @@ export default function App() {
 
 /* ---------- aplicación con sesión ---------- */
 
-function Shell(props: { me: Me; onLogout: () => void; onSessionLost: () => void }) {
-  const { me, onLogout, onSessionLost } = props
+type View = 'resumen' | 'facturas' | 'archivos' | 'dte' | 'correos'
+
+const TITLES: Record<View, string> = {
+  resumen: 'Resumen',
+  facturas: 'Facturas',
+  archivos: 'Archivos en la nube',
+  dte: 'Correos con DTE',
+  correos: 'Todos los correos',
+}
+
+function Shell(props: {
+  me: Me
+  themeToggle: ReactNode
+  onLogout: () => void
+  onSessionLost: () => void
+}) {
+  const { me, themeToggle, onLogout, onSessionLost } = props
+  const [view, setView] = useState<View>('resumen')
   const [search, setSearch] = useState('')
   const [filters, setFilters] = useState<Filters>(NO_FILTERS)
-  const [onlyDte, setOnlyDte] = useState(true)
   const [selected, setSelected] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
 
-  const q = buildQuery(search, filters, onlyDte)
+  const isMail = view === 'dte' || view === 'correos'
+  const q = buildQuery(search, filters, view === 'dte')
+
+  // Al entrar se traen las facturas nuevas del correo, una sola vez.
+  const sync = useSync(onSessionLost)
+  const startSync = sync.start
+  useEffect(() => {
+    startSync()
+  }, [startSync])
 
   // La clave de SearchBar cambia al quitar la búsqueda desde un filtro activo,
   // para que el cuadro de texto también se vacíe.
@@ -704,11 +780,27 @@ function Shell(props: { me: Me; onLogout: () => void; onSessionLost: () => void 
     setResets((n) => n + 1)
   }
 
-  function go(dte: boolean) {
-    setOnlyDte(dte)
+  function go(next: View) {
+    setView(next)
     setSelected(null)
     setMenuOpen(false)
   }
+
+  /** Abre el correo del que salió una factura, con su PDF. */
+  function openMessage(messageId: string) {
+    setView('dte')
+    setSelected(messageId)
+  }
+
+  const link = (target: View, icon: ReactNode) => (
+    <button
+      className={view === target ? 'menu-link active' : 'menu-link'}
+      onClick={() => go(target)}
+    >
+      {icon}
+      <span>{TITLES[target]}</span>
+    </button>
+  )
 
   return (
     <div className={menuOpen ? 'app menu-open' : 'app'}>
@@ -726,25 +818,28 @@ function Shell(props: { me: Me; onLogout: () => void; onSessionLost: () => void 
         </div>
 
         <nav className="menu">
-          <span className="menu-heading">Bandeja</span>
-          <button className={onlyDte ? 'menu-link active' : 'menu-link'} onClick={() => go(true)}>
-            <ReceiptIcon weight="duotone" />
-            <span>Documentos DTE</span>
-          </button>
-          <button className={onlyDte ? 'menu-link' : 'menu-link active'} onClick={() => go(false)}>
-            <EnvelopeSimpleIcon weight="duotone" />
-            <span>Todos los correos</span>
-          </button>
+          <span className="menu-heading">Contabilidad</span>
+          {link('resumen', <ChartBarIcon />)}
+          {link('facturas', <TableIcon />)}
+          {link('archivos', <GoogleCloudIcon />)}
+          <span className="menu-heading">Correo</span>
+          {link('dte', <ReceiptIcon />)}
+          {link('correos', <EnvelopeSimpleIcon />)}
         </nav>
 
         <div className="sidebar-user">
-          <Symbol name={me.email} size={36} tone="primary" />
+          <Symbol name={me.email} size={36} tone="lavender" />
           <span className="sidebar-email" title={me.email}>
             <small>Conectado como</small>
             {me.email}
           </span>
-          <button className="btn-icon" onClick={onLogout} title="Cerrar sesión" aria-label="Cerrar sesión">
-            <SignOutIcon weight="duotone" />
+          <button
+            className="btn-icon"
+            onClick={onLogout}
+            title="Cerrar sesión"
+            aria-label="Cerrar sesión"
+          >
+            <SignOutIcon />
           </button>
         </div>
       </aside>
@@ -759,52 +854,76 @@ function Shell(props: { me: Me; onLogout: () => void; onSessionLost: () => void 
             <ListIcon weight="bold" />
           </button>
           <div className="page-title">
-            <h1>{onlyDte ? 'Documentos tributarios' : 'Todos los correos'}</h1>
+            <h1>{TITLES[view]}</h1>
             <span className="crumbs">
-              Inicio <i /> Bandeja <i /> {onlyDte ? 'DTE' : 'Correos'}
+              {new Date().toLocaleDateString('es-SV', {
+                weekday: 'long',
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric',
+              })}
             </span>
           </div>
-          <SearchBar
-            key={resets}
-            value={search}
-            filters={filters}
-            onSearch={onSearch}
-            onFilters={onFilters}
-          />
-        </header>
-
-        <main className={selected ? 'content has-selection' : 'content'}>
-          <section className="card list-card">
-            <ActiveFilters
-              search={search}
+          {isMail && (
+            <SearchBar
+              key={resets}
+              value={search}
               filters={filters}
-              onSearch={clearSearch}
+              onSearch={onSearch}
               onFilters={onFilters}
             />
-            <MessageList
-              key={q}
-              q={q}
-              selected={selected}
-              onSelect={setSelected}
-              onSessionLost={onSessionLost}
-            />
-          </section>
+          )}
+          {themeToggle}
+        </header>
 
-          <section className="card detail-card">
-            {selected ? (
-              <Detail
-                key={selected}
-                id={selected}
-                onBack={() => setSelected(null)}
+        {view === 'resumen' && (
+          <Dashboard
+            sync={sync}
+            onSessionLost={onSessionLost}
+            onOpenInvoices={() => go('facturas')}
+          />
+        )}
+
+        {view === 'facturas' && (
+          <InvoicesView sync={sync} onSessionLost={onSessionLost} onOpenMessage={openMessage} />
+        )}
+
+        {view === 'archivos' && (
+          <FilesView onSessionLost={onSessionLost} onOpenMessage={openMessage} />
+        )}
+
+        {isMail && (
+          <main className={selected ? 'content has-selection' : 'content'}>
+            <section className="card list-card">
+              <ActiveFilters
+                search={search}
+                filters={filters}
+                onSearch={clearSearch}
+                onFilters={onFilters}
+              />
+              <MessageList
+                key={q}
+                q={q}
+                selected={selected}
+                onSelect={setSelected}
                 onSessionLost={onSessionLost}
               />
-            ) : (
-              <Blank icon={<FileTextIcon weight="duotone" />}>
-                Selecciona un correo para ver su documento.
-              </Blank>
-            )}
-          </section>
-        </main>
+            </section>
+
+            <section className="card detail-card">
+              {selected ? (
+                <Detail
+                  key={selected}
+                  id={selected}
+                  onBack={() => setSelected(null)}
+                  onSessionLost={onSessionLost}
+                />
+              ) : (
+                <Blank icon={<FileTextIcon />}>Selecciona un correo para ver su documento.</Blank>
+              )}
+            </section>
+          </main>
+        )}
       </div>
     </div>
   )
@@ -893,7 +1012,7 @@ function MessageList(props: {
       ) : (
         <div className="list-scroll">
           {state.items.length === 0 && !state.error && (
-            <Blank icon={<TrayIcon weight="duotone" />}>No hay correos que coincidan.</Blank>
+            <Blank icon={<TrayIcon />}>No hay correos que coincidan.</Blank>
           )}
           <ul className="messages">
             {state.items.map((m) => {
@@ -915,7 +1034,7 @@ function MessageList(props: {
           </ul>
           {state.error && (
             <p className="alert danger">
-              <WarningCircleIcon weight="duotone" />
+              <WarningCircleIcon />
               {state.error}
             </p>
           )}
@@ -947,9 +1066,16 @@ function Detail(props: { id: string; onBack: () => void; onSessionLost: () => vo
   const { id, onBack, onSessionLost } = props
   const [state, setState] = useState<DetailState>({ status: 'loading' })
   const [chosen, setChosen] = useState<Tab | null>(null)
+  // Nombres de los adjuntos de este correo que ya están guardados en la nube
+  const [saved, setSaved] = useState<string[]>([])
 
   useEffect(() => {
     let alive = true
+    // Si la nube no está disponible, el correo se muestra igual.
+    listFiles(id)
+      .then((files) => alive && setSaved(files.map((file) => file.filename)))
+      .catch(() => undefined)
+
     Promise.allSettled([getMessage(id), getDte(id)]).then(([message, dte]) => {
       if (!alive) return
       const failed = [message, dte].find(
@@ -991,7 +1117,7 @@ function Detail(props: { id: string; onBack: () => void; onSessionLost: () => vo
       <div className="detail">
         {back}
         <p className="alert danger">
-          <WarningCircleIcon weight="duotone" />
+          <WarningCircleIcon />
           {state.error}
         </p>
       </div>
@@ -1014,15 +1140,15 @@ function Detail(props: { id: string; onBack: () => void; onSessionLost: () => vo
           <h2>{message.subject || '(sin asunto)'}</h2>
           <div className="mail-meta">
             <span>
-              <UserCircleIcon weight="duotone" />
+              <UserCircleIcon />
               {name}
             </span>
             <span>
-              <EnvelopeSimpleIcon weight="duotone" />
+              <EnvelopeSimpleIcon />
               {senderEmail(message.from)}
             </span>
             <span>
-              <CalendarBlankIcon weight="duotone" />
+              <CalendarBlankIcon />
               {formatDate(message.date, true)}
             </span>
           </div>
@@ -1033,27 +1159,13 @@ function Detail(props: { id: string; onBack: () => void; onSessionLost: () => vo
         <ul className="attachments" aria-label="Archivos adjuntos">
           {attachments.map((file) => (
             <li key={file.index}>
-              <a
-                className="file"
-                href={attachmentUrl(id, file.index, true)}
-                download={file.filename}
-                title={`Descargar ${file.filename}`}
-              >
-                <Symbol name="" size={38} tone={isPdf(file) ? 'danger' : isJson(file) ? 'warning' : 'primary'}>
-                  {isPdf(file) ? (
-                    <FilePdfIcon weight="duotone" />
-                  ) : isJson(file) ? (
-                    <BracketsCurlyIcon weight="duotone" />
-                  ) : (
-                    <FileIcon weight="duotone" />
-                  )}
-                </Symbol>
-                <span className="file-info">
-                  <strong>{file.filename}</strong>
-                  <small>{fileSize(file.size)}</small>
-                </span>
-                <DownloadSimpleIcon weight="bold" className="file-action" />
-              </a>
+              <AttachmentChip
+                messageId={id}
+                file={file}
+                saved={saved.includes(file.filename)}
+                onSaved={() => setSaved((names) => [...names, file.filename])}
+                onSessionLost={onSessionLost}
+              />
             </li>
           ))}
         </ul>
@@ -1061,17 +1173,17 @@ function Detail(props: { id: string; onBack: () => void; onSessionLost: () => vo
 
       <nav className="tabs" role="tablist">
         <button role="tab" aria-selected={tab === 'dte'} onClick={() => setChosen('dte')}>
-          <ReceiptIcon weight="duotone" />
+          <ReceiptIcon />
           Documento
         </button>
         {pdf && (
           <button role="tab" aria-selected={tab === 'pdf'} onClick={() => setChosen('pdf')}>
-            <FilePdfIcon weight="duotone" />
+            <FilePdfIcon />
             PDF
           </button>
         )}
         <button role="tab" aria-selected={tab === 'mail'} onClick={() => setChosen('mail')}>
-          <EnvelopeSimpleIcon weight="duotone" />
+          <EnvelopeSimpleIcon />
           Correo
         </button>
       </nav>
@@ -1080,7 +1192,7 @@ function Detail(props: { id: string; onBack: () => void; onSessionLost: () => vo
         (dte ? (
           <DteView dte={dte} />
         ) : (
-          <Blank icon={<ReceiptIcon weight="duotone" />}>{dteNote}</Blank>
+          <Blank icon={<ReceiptIcon />}>{dteNote}</Blank>
         ))}
       {tab === 'pdf' && pdf && (
         <div className="pdf">
@@ -1099,6 +1211,67 @@ function Detail(props: { id: string; onBack: () => void; onSessionLost: () => vo
   )
 }
 
+/* ---------- adjunto: descargar o guardar en la nube ---------- */
+
+function AttachmentChip(props: {
+  messageId: string
+  file: Attachment
+  saved: boolean
+  onSaved: () => void
+  onSessionLost: () => void
+}) {
+  const { messageId, file, saved, onSaved, onSessionLost } = props
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  async function save() {
+    setSaving(true)
+    setError('')
+    try {
+      await saveFile(messageId, file.index)
+      onSaved()
+    } catch (err) {
+      if (isUnauthorized(err)) onSessionLost()
+      else setError(errorText(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="file">
+      <Symbol
+        name=""
+        size={38}
+        tone={isPdf(file) ? 'lavender' : isJson(file) ? 'mint' : 'sky'}
+      >
+        {isPdf(file) ? <FilePdfIcon /> : isJson(file) ? <BracketsCurlyIcon /> : <FileIcon />}
+      </Symbol>
+      <span className="file-info">
+        <strong title={file.filename}>{file.filename}</strong>
+        <small className={error ? 'file-error' : undefined}>{error || fileSize(file.size)}</small>
+      </span>
+      <a
+        className="file-btn"
+        href={attachmentUrl(messageId, file.index, true)}
+        download={file.filename}
+        title="Descargar"
+        aria-label={`Descargar ${file.filename}`}
+      >
+        <DownloadSimpleIcon weight="bold" />
+      </a>
+      <button
+        className={saved ? 'file-btn file-cloud done' : 'file-btn file-cloud'}
+        onClick={save}
+        disabled={saving || saved}
+      >
+        <GoogleCloudIcon />
+        {saved ? 'Guardado en la nube' : saving ? 'Guardando…' : 'Guardar en la nube'}
+      </button>
+    </div>
+  )
+}
+
 /* ---------- cuerpo del correo ---------- */
 
 // El HTML del correo se muestra aislado en un iframe: sin scripts, sin
@@ -1108,11 +1281,11 @@ const FRAME_HEAD = `<meta charset="utf-8">
 <base target="_blank">
 <style>
   html { color-scheme: light; }
-  body { margin: 0; padding: 20px; background: #fff; color: #252f4a;
-         font: 14px/1.55 Inter, system-ui, 'Segoe UI', Roboto, sans-serif; overflow-wrap: anywhere; }
+  body { margin: 0; padding: 20px; background: #fff; color: #151515;
+         font: 14px/1.55 system-ui, 'Segoe UI', Roboto, sans-serif; overflow-wrap: anywhere; }
   img { max-width: 100%; height: auto; }
   table { max-width: 100%; }
-  a { color: #1b84ff; }
+  a { color: #1a1a1a; }
 </style>`
 
 function MailBody({ message }: { message: MessageDetail }) {
@@ -1154,7 +1327,7 @@ function MailBody({ message }: { message: MessageDetail }) {
   }
 
   return (
-    <Blank icon={<EnvelopeSimpleIcon weight="duotone" />}>
+    <Blank icon={<EnvelopeSimpleIcon />}>
       Este correo no tiene contenido para mostrar.
     </Blank>
   )
@@ -1203,20 +1376,27 @@ function DteView({ dte }: { dte: Dte }) {
 
   return (
     <div className="dte">
+      <div className="dte-actions">
+        <a
+          className="btn btn-light btn-sm"
+          href={haciendaUrl(ident.ambiente, ident.codigoGeneracion, ident.fecEmi)}
+          target="_blank"
+          rel="noreferrer"
+        >
+          <ArrowSquareOutIcon />
+          Verificar en Hacienda
+        </a>
+        <button className="btn btn-light btn-sm" onClick={() => window.print()}>
+          <PrinterIcon />
+          Imprimir
+        </button>
+      </div>
       <div className="dte-top">
         <div>
+          <span className="dte-kicker">Documento tributario electrónico</span>
           <h3>{tipo}</h3>
           <div className="badges">
-            {dte.selloRecibido ? (
-              <span className="badge success">
-                <SealCheckIcon weight="fill" />
-                Sello recibido
-              </span>
-            ) : (
-              <span className="badge warning">Sin sello de recepción</span>
-            )}
             {ident.ambiente === '00' && <span className="badge warning">Ambiente de pruebas</span>}
-            <span className="badge muted">{currency}</span>
           </div>
         </div>
         <div className="dte-total">
@@ -1229,14 +1409,15 @@ function DteView({ dte }: { dte: Dte }) {
         <Field label="Fecha de emisión" value={[ident.fecEmi, ident.horEmi].filter(Boolean).join(' · ')} />
         <Field label="Número de control" value={ident.numeroControl} mono />
         <Field label="Código de generación" value={ident.codigoGeneracion} mono />
+        <Field label="Sello de recepción" value={dte.selloRecibido} mono />
       </dl>
 
       <div className="parties">
-        <Party title="Emisor" name={emisor.nombre} icon={<BuildingsIcon weight="duotone" />} tone="primary">
+        <Party title="Emisor" name={emisor.nombre} icon={<BuildingsIcon />} tone="lavender">
           <Field label="NIT" value={emisor.nit} mono />
           <Field label="NRC" value={emisor.nrc} mono />
         </Party>
-        <Party title="Receptor" name={receptor.nombre} icon={<UserCircleIcon weight="duotone" />} tone="info">
+        <Party title="Receptor" name={receptor.nombre} icon={<UserCircleIcon />} tone="mint">
           <Field label="Documento" value={receptor.nit ?? receptor.numDocumento} mono />
           <Field label="NRC" value={receptor.nrc} mono />
         </Party>
@@ -1296,16 +1477,6 @@ function DteView({ dte }: { dte: Dte }) {
           </div>
         </dl>
       </div>
-
-      {dte.selloRecibido && (
-        <div className="notice">
-          <ShieldCheckIcon weight="duotone" />
-          <div>
-            <strong>Sello de recepción de Hacienda</strong>
-            <span className="mono">{dte.selloRecibido}</span>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

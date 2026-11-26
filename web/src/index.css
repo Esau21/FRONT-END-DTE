@@ -1,74 +1,103 @@
-@import '@fontsource-variable/inter';
+@import '@fontsource-variable/plus-jakarta-sans';
 
+/*
+ * Paleta: negro, blanco y verde limón.
+ *
+ * El verde limón casi no se distingue como línea o como texto sobre blanco,
+ * así que cada uso tiene su variable:
+ *   --violet     relleno principal, verde limón (botones, elemento activo)
+ *   --on-violet  texto que va encima del verde limón
+ *   --edge       líneas, foco y enlaces (negro en claro, verde limón en oscuro)
+ *   --bar        barras de los gráficos
+ *
+ * Los demás nombres vienen de paletas anteriores; lo que importa es su uso:
+ *   --lavender                tinte verde limón: seleccionado, filtros activos
+ *   --peach, --butter         gris neutro: "pendiente", avisos
+ *   --sky, --rose             bloque negro: "revisada", errores
+ *   --mint                    bloque verde limón: totales, "pagada"
+ */
 :root {
-  /* Escala de grises y colores de estado */
-  --gray-100: #f9f9f9;
-  --gray-200: #f1f1f4;
-  --gray-300: #dbdfe9;
-  --gray-400: #c4cada;
-  --gray-500: #99a1b7;
-  --gray-600: #78829d;
-  --gray-700: #4b5675;
-  --gray-800: #252f4a;
-  --gray-900: #071437;
+  --bg: #f6f6f4; /* fondo general */
+  --surface: #ffffff; /* tarjetas */
+  --soft: #f0f0ee; /* rellenos sutiles */
+  --line: #e4e4e1; /* bordes */
+  --ink: #0d0d0d; /* títulos */
+  --text: #3a3a3a;
+  --muted: #858585;
 
-  --primary: #1b84ff;
-  --primary-active: #056ee9;
-  --primary-light: #e9f3ff;
-  --success: #17c653;
-  --success-light: #eafff1;
-  --info: #7239ea;
-  --info-light: #f8f5ff;
-  --warning: #f6c000;
-  --warning-text: #b88c00;
-  --warning-light: #fff8dd;
-  --danger: #f8285a;
-  --danger-light: #ffeef3;
+  --violet: #c7f33a;
+  --violet-strong: #b5e31f;
+  --on-violet: #0d0d0d;
+  --edge: #0d0d0d;
+  --bar: #0d0d0d;
 
-  --body-bg: #fcfcfc;
-  --card-bg: #ffffff;
-  --card-shadow: 0 3px 4px 0 rgba(0, 0, 0, 0.03);
-  --radius: 0.75rem;
+  --lavender: #eefbc4;
+  --lavender-ink: #0d0d0d;
+  --peach: #ebebe9;
+  --peach-ink: #0d0d0d;
+  --butter: #ebebe9;
+  --butter-ink: #0d0d0d;
+  --sky: #0d0d0d;
+  --sky-ink: #ffffff;
+  --rose: #0d0d0d;
+  --rose-ink: #ffffff;
+  --mint: #c7f33a;
+  --mint-ink: #0d0d0d;
 
-  /* La barra lateral es oscura en ambos temas */
-  --sidebar-bg: #0d0e12;
-  --sidebar-border: #1f212a;
-  --sidebar-text: #9a9cae;
-  --sidebar-hover: #1c1c21;
+  /* El menú lateral y el login son negros en ambos modos */
+  --side-bg: #0d0d0d;
+  --side-line: #0d0d0d;
+  --side-text: #c9c9c9;
+  --side-muted: #7d7d7d;
 
-  --sans: 'Inter Variable', Inter, system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  --sans: 'Plus Jakarta Sans Variable', system-ui, 'Segoe UI', Roboto, sans-serif;
 
-  font: 500 13px/1.5 var(--sans);
-  color-scheme: light dark;
-  color: var(--gray-700);
-  background: var(--body-bg);
+  --radius: 10px;
+  --radius-lg: 16px;
+  --shadow: 0 1px 2px rgba(13, 13, 13, 0.04), 0 8px 24px -14px rgba(13, 13, 13, 0.18);
+
+  font: 500 14px/1.55 var(--sans);
+  color-scheme: light;
+  color: var(--text);
+  background: var(--bg);
   -webkit-font-smoothing: antialiased;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --gray-100: #1b1c22;
-    --gray-200: #26272f;
-    --gray-300: #363843;
-    --gray-400: #464852;
-    --gray-500: #636674;
-    --gray-600: #808290;
-    --gray-700: #9a9cae;
-    --gray-800: #b5b7c8;
-    --gray-900: #f5f5f5;
+/* Modo oscuro: fondo negro, texto blanco y el verde limón también en líneas */
+:root[data-theme='dark'] {
+  --bg: #0d0d0d;
+  --surface: #181818;
+  --soft: #232323;
+  --line: #333333;
+  --ink: #ffffff;
+  --text: #d6d6d6;
+  --muted: #999999;
 
-    --primary-light: #172331;
-    --success-light: #1f212a;
-    --info-light: #272134;
-    --warning-light: #242320;
-    --warning-text: #f6c000;
-    --danger-light: #302024;
+  --violet: #c7f33a;
+  --violet-strong: #d6f866;
+  --on-violet: #0d0d0d;
+  --edge: #c7f33a;
+  --bar: #c7f33a;
 
-    --body-bg: #0f1014;
-    --card-bg: #15171c;
-    --card-shadow: none;
-  }
+  --lavender: #2b3410;
+  --lavender-ink: #e3f99a;
+  --peach: #2e2e2e;
+  --peach-ink: #ffffff;
+  --butter: #2e2e2e;
+  --butter-ink: #ffffff;
+  --sky: #ffffff;
+  --sky-ink: #0d0d0d;
+  --rose: #ffffff;
+  --rose-ink: #0d0d0d;
+  --mint: #c7f33a;
+  --mint-ink: #0d0d0d;
+
+  --side-bg: #000000;
+  --side-line: #262626;
+
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 26px -14px rgba(0, 0, 0, 0.7);
+
+  color-scheme: dark;
 }
 
 *,
@@ -85,8 +114,9 @@ h1,
 h2,
 h3 {
   margin: 0;
-  color: var(--gray-900);
-  font-weight: 600;
+  color: var(--ink);
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 p,
@@ -96,12 +126,18 @@ dd {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
   color: inherit;
 }
 
+::selection {
+  background: var(--violet);
+  color: var(--on-violet);
+}
+
 :focus-visible {
-  outline: 2px solid var(--primary);
+  outline: 2px solid var(--edge);
   outline-offset: 2px;
 }

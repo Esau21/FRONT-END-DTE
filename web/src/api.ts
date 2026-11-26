@@ -71,10 +71,10 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function send<T>(url: string, init?: RequestInit): Promise<T> {
   let res: Response
   try {
-    res = await fetch(BASE + path, {
+    res = await fetch(url, {
       credentials: 'same-origin',
       headers: { Accept: 'application/json' },
       ...init,
@@ -99,6 +99,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (body === null) throw new ApiError(res.status, 'service_unavailable')
   return body as T
 }
+
+const request = <T>(path: string, init?: RequestInit) => send<T>(BASE + path, init)
 
 export const getMe = () => request<Me>('/me')
 
@@ -132,6 +134,14 @@ const MESSAGES: Record<string, string> = {
     'El servicio no responde. Verifica que la API de Go esté corriendo en el puerto 8080.',
   login_required: 'Tu sesión expiró. Inicia sesión de nuevo.',
   unreadable_message: 'No se pudo leer este correo.',
+  database_unavailable: 'La base de datos no está disponible. Las facturas guardadas no se pueden consultar.',
+  database_error: 'No se pudo consultar la base de datos. Intenta de nuevo.',
+  invoice_not_found: 'La factura ya no existe.',
+  export_failed: 'No se pudo generar el archivo de Excel.',
+  file_too_large: 'El archivo es demasiado grande para guardarlo (máximo 20 MB).',
+  bucket_error: 'No se pudo usar el almacenamiento en la nube. Intenta de nuevo.',
+  bucket_unavailable: 'El almacenamiento en la nube no está disponible.',
+  file_not_found: 'El archivo guardado ya no existe.',
   attachment_not_found: 'El adjunto ya no está disponible.',
   dte_not_found: 'Este correo no trae un DTE (.json) adjunto.',
   invalid_dte: 'El adjunto .json no es un DTE válido.',
@@ -151,3 +161,159 @@ export function errorText(err: unknown): string {
 
 export const isUnauthorized = (err: unknown) =>
   err instanceof ApiError && err.status === 401
+
+/* ---------- facturas guardadas ---------- */
+
+const INVOICES = '/api/v1/invoices'
+
+export type InvoiceStatus = 'pendiente' | 'revisada' | 'pagada'
+
+export interface Invoice {
+  id: number
+  codigoGeneracion: string
+  numeroControl: string
+  tipoDte: string
+  ambiente: string
+  fecha: string
+  hora: string
+  moneda: string
+  emisorNit: string
+  emisorNrc: string
+  emisorNombre: string
+  receptorDoc: string
+  receptorNrc: string
+  receptorNombre: string
+  noSujeto: number
+  exento: number
+  gravado: number
+  iva: number
+  ivaPercibido: number
+  ivaRetenido: number
+  total: number
+  sello: string
+  messageId: string
+  status: InvoiceStatus
+  category: string
+  notes: string
+}
+
+/** Sumas de un conjunto de facturas; las notas de crédito restan. */
+export interface Totals {
+  count: number
+  gravado: number
+  iva: number
+  total: number
+}
+
+export interface InvoiceFilter {
+  from?: string
+  to?: string
+  status?: string
+  tipo?: string
+  q?: string
+}
+
+export interface SyncResult {
+  scanned: number
+  imported: number
+  skipped: number
+  nextPageToken: string
+  done: boolean
+}
+
+export interface Summary {
+  /** Primer mes del resumen, AAAA-MM. */
+  since: string
+  thisMonth: string
+  months: (Totals & { month: string })[]
+  issuers: (Totals & { nombre: string; nit: string })[]
+  byStatus: Record<string, number>
+  categories: string[]
+}
+
+function filterParams(filter: InvoiceFilter) {
+  const params = new URLSearchParams()
+  for (const [key, value] of Object.entries(filter)) {
+    if (value) params.set(key, value)
+  }
+  return params
+}
+
+/** Revisa una página de correos y guarda los DTE nuevos. */
+export function syncInvoices(pageToken = '', full = false) {
+  const params = new URLSearchParams()
+  if (pageToken) params.set('pageToken', pageToken)
+  if (full) params.set('full', '1')
+  return send<SyncResult>(`${INVOICES}/sync?${params}`, { method: 'POST' })
+}
+
+export function listInvoices(filter: InvoiceFilter, limit: number, offset: number) {
+  const params = filterParams(filter)
+  params.set('limit', String(limit))
+  params.set('offset', String(offset))
+  return send<{ items: Invoice[]; totals: Totals }>(`${INVOICES}?${params}`)
+}
+
+export const getSummary = () => send<Summary>(`${INVOICES}/summary`)
+
+export const updateInvoice = (
+  id: number,
+  patch: Partial<Pick<Invoice, 'status' | 'category' | 'notes'>>,
+) =>
+  send<Invoice>(`${INVOICES}/${id}`, {
+    method: 'PATCH',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  })
+
+/** Dirección para descargar el Excel: el libro de compras o el detalle. */
+export function exportUrl(kind: 'compras' | 'detalle', filter: InvoiceFilter) {
+  const params = filterParams(filter)
+  params.set('kind', kind)
+  return `${INVOICES}/export?${params}`
+}
+
+/* ---------- archivos guardados en la nube ---------- */
+
+const FILES = '/api/v1/files'
+
+/** Copia de un adjunto guardada en la aplicación. */
+export interface SavedFile {
+  id: number
+  messageId: string
+  filename: string
+  size: number
+  mailFrom: string
+  mailSubject: string
+  createdAt: string
+  /** Ruta dentro del bucket: cuenta/año/mes/emisor/archivo. */
+  path: string
+}
+
+export interface Cloud {
+  files: SavedFile[]
+  /** Nombre del bucket; vacío si los archivos están en la base de datos. */
+  bucket: string
+  account: string
+}
+
+/** Guarda en la nube el adjunto número `index` de un correo. */
+export const saveFile = (messageId: string, index: number) =>
+  send<SavedFile>(FILES, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messageId, index }),
+  })
+
+/** Todo lo guardado en la nube, ordenado por carpeta. */
+export const getCloud = () => send<Cloud>(FILES)
+
+/** Archivos guardados de un correo. */
+export const listFiles = (messageId: string) =>
+  send<Cloud>(`${FILES}?messageId=${encodeURIComponent(messageId)}`).then((cloud) => cloud.files)
+
+export const deleteFile = (id: number) => send<void>(`${FILES}/${id}`, { method: 'DELETE' })
+
+/** Los PDF se abren en el navegador salvo que se pida descarga. */
+export const savedFileUrl = (id: number, download = false) =>
+  `${FILES}/${id}${download ? '?download=1' : ''}`
