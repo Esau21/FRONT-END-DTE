@@ -2,11 +2,15 @@ import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
   ArrowsClockwiseIcon,
+  ArrowLeftIcon,
   ArrowSquareOutIcon,
+  BracketsCurlyIcon,
   CloudIcon,
   DownloadSimpleIcon,
   FolderSimpleIcon,
   EnvelopeSimpleIcon,
+  FileIcon,
+  FilePdfIcon,
   MagnifyingGlassIcon,
   MicrosoftExcelLogoIcon,
   ReceiptIcon,
@@ -761,19 +765,35 @@ function folderOf(file: SavedFile): string[] {
   return [year, monthLabel(`${year}-${month}`, true).replace(/ de \d+$/, ''), ...rest]
 }
 
-/** Agrupa los archivos por carpeta, respetando el orden en que llegan. */
-function byFolder(files: SavedFile[]) {
-  const groups: { folder: string[]; files: SavedFile[] }[] = []
-  for (const file of files) {
-    const folder = folderOf(file)
-    const last = groups[groups.length - 1]
-    if (last && last.folder.join('/') === folder.join('/')) last.files.push(file)
-    else groups.push({ folder, files: [file] })
-  }
-  return groups
+interface Folder {
+  key: string
+  /** ["2026", "noviembre", "Emisor"] */
+  path: string[]
+  files: SavedFile[]
+  size: number
 }
 
-/** Los adjuntos que el usuario guardó desde sus correos, por carpeta. */
+/** Agrupa los archivos por carpeta, respetando el orden en que llegan. */
+function byFolder(files: SavedFile[]): Folder[] {
+  const folders = new Map<string, Folder>()
+  for (const file of files) {
+    const path = folderOf(file)
+    const key = path.join('/')
+    const folder = folders.get(key) ?? { key, path, files: [], size: 0 }
+    folder.files.push(file)
+    folder.size += file.size
+    folders.set(key, folder)
+  }
+  return [...folders.values()]
+}
+
+function FileGlyph({ name }: { name: string }) {
+  if (/\.pdf$/i.test(name)) return <FilePdfIcon />
+  if (/\.json$/i.test(name)) return <BracketsCurlyIcon />
+  return <FileIcon />
+}
+
+/** Los archivos guardados en el bucket: primero las carpetas, luego su contenido. */
 export function FilesView(props: {
   onSessionLost: () => void
   onOpenMessage: (messageId: string) => void
@@ -781,6 +801,7 @@ export function FilesView(props: {
   const { onSessionLost, onOpenMessage } = props
   const [cloud, setCloud] = useState<Cloud | null>(null)
   const [error, setError] = useState('')
+  const [openKey, setOpenKey] = useState<string | null>(null)
   const [confirming, setConfirming] = useState<number | null>(null)
 
   useEffect(() => {
@@ -809,7 +830,26 @@ export function FilesView(props: {
     }
   }
 
-  const files = cloud?.files
+  if (!cloud) {
+    return (
+      <main className="page">
+        {error ? (
+          <p className="alert danger">
+            <WarningCircleIcon />
+            {error}
+          </p>
+        ) : (
+          <div className="page-loading">
+            <span className="spinner" />
+          </div>
+        )}
+      </main>
+    )
+  }
+
+  const folders = byFolder(cloud.files)
+  // Si se borra el último archivo de la carpeta abierta, se vuelve a la lista
+  const open = folders.find((folder) => folder.key === openKey) ?? null
 
   return (
     <main className="page">
@@ -819,131 +859,132 @@ export function FilesView(props: {
           {error}
         </p>
       )}
-      {cloud && (
-        <p className="sync-note files-where">
-          {cloud.bucket ? (
-            <>
-              Guardado en el bucket <strong>{cloud.bucket}</strong>, en la carpeta{' '}
-              <strong>{cloud.account}</strong>, ordenado por año, mes y emisor.
-            </>
-          ) : (
-            'No hay un bucket configurado: los archivos se guardan en la base de datos.'
-          )}
-        </p>
-      )}
-      <div className="card">
-        {!cloud && !error && (
-          <div className="page-loading">
-            <span className="spinner" />
-          </div>
+
+      {/* Dónde estamos: bucket › carpeta */}
+      <nav className="crumb" aria-label="Ubicación">
+        {open && (
+          <button className="btn-icon" onClick={() => setOpenKey(null)} aria-label="Volver a las carpetas">
+            <ArrowLeftIcon weight="bold" />
+          </button>
         )}
-        {files?.length === 0 && (
+        <button className="crumb-item" onClick={() => setOpenKey(null)} disabled={!open}>
+          <CloudIcon weight="fill" />
+          {cloud.bucket || 'Archivos guardados'}
+        </button>
+        {open?.path.map((name, i) => (
+          <span className="crumb-item" key={i}>
+            {name}
+          </span>
+        ))}
+        <span className="crumb-count">
+          {open
+            ? `${open.files.length} ${open.files.length === 1 ? 'archivo' : 'archivos'} · ${fileSize(open.size)}`
+            : `${folders.length} ${folders.length === 1 ? 'carpeta' : 'carpetas'} · ${cloud.files.length} ${cloud.files.length === 1 ? 'archivo' : 'archivos'}`}
+        </span>
+      </nav>
+
+      {folders.length === 0 && (
+        <div className="card">
           <Empty icon={<CloudIcon />}>
             <p>
               Aún no has guardado archivos. Abre un correo y usa “Guardar en la nube” en el PDF o
               el JSON que quieras conservar.
             </p>
           </Empty>
-        )}
-        {files && files.length > 0 && (
-          <div className="inv-table-wrap">
-            <table className="inv-table files-table">
-              <thead>
-                <tr>
-                  <th>Archivo</th>
-                  <th className="col-tipo">Correo</th>
-                  <th className="right col-iva">Tamaño</th>
-                  <th className="col-iva">Guardado</th>
-                  <th />
-                </tr>
-              </thead>
-              {byFolder(files).map((group) => (
-                <tbody key={group.folder.join('/')}>
-                  <tr className="files-folder">
-                    <th colSpan={5} scope="rowgroup">
-                      <FolderSimpleIcon weight="fill" />
-                      {group.folder.map((name, i) => (
-                        <span key={i}>{name}</span>
-                      ))}
-                      <small>
-                        {group.files.length} {group.files.length === 1 ? 'archivo' : 'archivos'}
-                      </small>
-                    </th>
-                  </tr>
-                  {group.files.map((file) => (
-                    <tr key={file.id}>
-                      <td>
-                        <a
-                          className="inv-name"
-                          href={savedFileUrl(file.id)}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          {file.filename}
-                        </a>
-                      </td>
-                      <td className="col-tipo">
-                        <button
-                          className="inv-name light"
-                          onClick={() => onOpenMessage(file.messageId)}
-                        >
-                          {file.mailSubject || '(sin asunto)'}
-                        </button>
-                      </td>
-                      <td className="right col-iva">{fileSize(file.size)}</td>
-                      <td className="col-iva nowrap">
-                        {new Date(file.createdAt).toLocaleDateString('es-SV', {
-                          day: 'numeric',
-                          month: 'short',
-                          year: 'numeric',
-                        })}
-                      </td>
-                      <td className="files-actions">
-                        {confirming === file.id ? (
-                          <>
-                            <button
-                              className="btn btn-primary btn-sm"
-                              onClick={() => remove(file.id)}
-                            >
-                              Eliminar
-                            </button>
-                            <button
-                              className="btn btn-light btn-sm"
-                              onClick={() => setConfirming(null)}
-                            >
-                              Cancelar
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <a
-                              className="btn-icon"
-                              href={savedFileUrl(file.id, true)}
-                              download={file.filename}
-                              title="Descargar"
-                              aria-label={`Descargar ${file.filename}`}
-                            >
-                              <DownloadSimpleIcon />
-                            </a>
-                            <button
-                              className="btn-icon"
-                              onClick={() => setConfirming(file.id)}
-                              title="Eliminar de la nube"
-                              aria-label={`Eliminar ${file.filename}`}
-                            >
-                              <TrashIcon />
-                            </button>
-                          </>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              ))}
-            </table>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {/* Carpetas: una cajita por emisor y mes */}
+      {!open && folders.length > 0 && (
+        <div className="boxes">
+          {folders.map((folder) => {
+            const name = folder.path[folder.path.length - 1]
+            const where = folder.path.slice(0, -1).reverse().join(' ')
+            return (
+              <button className="box" key={folder.key} onClick={() => setOpenKey(folder.key)}>
+                <span className="box-icon">
+                  <FolderSimpleIcon weight="fill" />
+                </span>
+                <strong title={name}>{name}</strong>
+                {where && <span className="box-where">{where}</span>}
+                <span className="box-meta">
+                  {folder.files.length} {folder.files.length === 1 ? 'archivo' : 'archivos'} ·{' '}
+                  {fileSize(folder.size)}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Contenido de la carpeta abierta: una cajita por archivo */}
+      {open && (
+        <div className="boxes">
+          {open.files.map((file) => (
+            <div className="box file-box" key={file.id}>
+              <a
+                className="box-open"
+                href={savedFileUrl(file.id)}
+                target="_blank"
+                rel="noreferrer"
+                title={`Abrir ${file.filename}`}
+              >
+                <span className={/\.pdf$/i.test(file.filename) ? 'box-icon pdf' : 'box-icon doc'}>
+                  <FileGlyph name={file.filename} />
+                </span>
+                <strong>{file.filename}</strong>
+              </a>
+              <span className="box-meta">
+                {fileSize(file.size)} · guardado el{' '}
+                {new Date(file.createdAt).toLocaleDateString('es-SV', {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                })}
+              </span>
+
+              {confirming === file.id ? (
+                <div className="box-actions">
+                  <button className="btn btn-primary btn-sm" onClick={() => remove(file.id)}>
+                    Eliminar
+                  </button>
+                  <button className="btn btn-light btn-sm" onClick={() => setConfirming(null)}>
+                    Cancelar
+                  </button>
+                </div>
+              ) : (
+                <div className="box-actions">
+                  <a
+                    className="btn-icon"
+                    href={savedFileUrl(file.id, true)}
+                    download={file.filename}
+                    title="Descargar"
+                    aria-label={`Descargar ${file.filename}`}
+                  >
+                    <DownloadSimpleIcon />
+                  </a>
+                  <button
+                    className="btn-icon"
+                    onClick={() => onOpenMessage(file.messageId)}
+                    title="Ver el correo"
+                    aria-label={`Ver el correo de ${file.filename}`}
+                  >
+                    <EnvelopeSimpleIcon />
+                  </button>
+                  <button
+                    className="btn-icon"
+                    onClick={() => setConfirming(file.id)}
+                    title="Eliminar de la nube"
+                    aria-label={`Eliminar ${file.filename}`}
+                  >
+                    <TrashIcon />
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </main>
   )
 }

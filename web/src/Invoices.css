@@ -107,6 +107,7 @@
 }
 
 .panel {
+  min-width: 0;
   padding: 22px;
 }
 
@@ -123,10 +124,11 @@
 /* ---------- gráfico de barras por mes ---------- */
 
 .chart {
+  flex: 1;
   display: flex;
   align-items: stretch;
   gap: 2px;
-  height: 230px;
+  min-height: 230px;
   margin-top: 22px;
 }
 
@@ -230,9 +232,15 @@
 .ranking {
   list-style: none;
   display: grid;
+  /* minmax(0, …) deja que los nombres largos se corten en vez de ensanchar el panel */
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   margin: 20px 0 0;
   padding: 0;
+}
+
+.ranking li {
+  min-width: 0;
 }
 
 .ranking-row {
@@ -242,6 +250,7 @@
 }
 
 .ranking-row span {
+  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -414,57 +423,167 @@ a.inv-name:hover,
   cursor: default;
 }
 
-.files-where {
-  margin: 0;
+/* ---------- ubicación: bucket › carpeta ---------- */
+
+.crumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  min-height: 36px;
 }
 
-.files-where strong {
+.crumb-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
   color: var(--ink);
+  font-weight: 600;
 }
 
-/* Fila que encabeza cada carpeta */
-.files-folder th {
-  padding: 10px 16px;
-  border-top: 1px solid var(--line);
-  background: var(--soft);
-  color: var(--ink);
-  font-size: 13.5px;
-  font-weight: 700;
-  text-align: left;
-  text-transform: none;
-}
-
-.files-folder svg {
-  margin-right: 8px;
+.crumb-item svg {
   font-size: 17px;
-  vertical-align: -3px;
-  color: var(--muted);
 }
 
-.files-folder span + span::before {
-  content: '›';
-  margin: 0 8px;
-  color: var(--muted);
-  font-weight: 500;
+button.crumb-item:not(:disabled) {
+  cursor: pointer;
 }
 
-.files-folder span::first-letter {
+button.crumb-item:not(:disabled):hover {
+  box-shadow: inset 0 0 0 1px var(--edge);
+}
+
+span.crumb-item::first-letter {
   text-transform: uppercase;
 }
 
-.files-folder small {
-  margin-left: 12px;
-  font-size: 12.5px;
-  font-weight: 500;
+.crumb-item + .crumb-item {
+  margin-left: 14px;
+  position: relative;
+}
+
+.crumb-item + .crumb-item::before {
+  content: "›";
+  position: absolute;
+  left: -15px;
   color: var(--muted);
 }
 
-.files-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 4px;
-  white-space: nowrap;
+.crumb-count {
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--muted);
 }
+
+/* ---------- cajitas: carpetas y archivos ---------- */
+
+.boxes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.box {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  text-align: left;
+}
+
+button.box {
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.15s;
+}
+
+button.box:hover {
+  border-color: var(--edge);
+  transform: translateY(-2px);
+}
+
+.box-icon {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  margin-bottom: 10px;
+  border-radius: 14px;
+  background: var(--violet);
+  color: var(--on-violet);
+  font-size: 28px;
+}
+
+.box-icon.pdf {
+  background: var(--sky);
+  color: var(--sky-ink);
+}
+
+.box-icon.doc {
+  background: var(--soft);
+  color: var(--ink);
+}
+
+.box strong {
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.box-where {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.box-where::first-letter {
+  text-transform: uppercase;
+}
+
+.box-meta {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.box-open {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.box-open:hover strong {
+  text-decoration: underline;
+}
+
+.box-actions {
+  display: flex;
+  gap: 4px;
+  margin: 10px -6px -6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.box-actions .btn {
+  flex: 1;
+  margin: 0 2px;
+}
+
 
 .inv-category {
   display: inline-block;
@@ -583,10 +702,13 @@ a.inv-name:hover,
   }
 }
 
-@media screen and (max-width: 980px) {
+@media screen and (max-width: 1100px) {
   .panels {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
+}
+
+@media screen and (max-width: 980px) {
 
   /* El panel de la factura ocupa el lugar de la tabla */
   .inv-layout.has-selection {
@@ -618,6 +740,20 @@ a.inv-name:hover,
 
   .sync-note {
     flex-basis: 100%;
+  }
+
+  .crumb,
+  .boxes {
+    padding: 0 16px;
+  }
+
+  .boxes {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 10px;
+  }
+
+  .box {
+    padding: 14px;
   }
 
   .tiles {
