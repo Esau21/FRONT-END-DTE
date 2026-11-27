@@ -18,6 +18,7 @@ COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=build /app/dist /usr/share/nginx/html
 
 # URL de la API de Go, vista desde dentro del contenedor
-ENV API_TARGET=http://host.docker.internal:8080
+ARG API_TARGET
+ENV API_TARGET=${API_TARGET}
 
 EXPOSE 80
