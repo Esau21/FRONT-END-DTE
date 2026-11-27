@@ -54,6 +54,7 @@ import type {
   Provider,
 } from './api'
 import { FolderPicker } from './FolderPicker'
+import { PrivacyPolicy, TermsOfService } from './Legal'
 import { Dashboard, FilesView, InvoicesView } from './Invoices'
 import { TIPOS_DTE, haciendaUrl, money } from './format'
 import { useSync } from './useSync'
@@ -701,7 +702,70 @@ type Auth =
   | { status: 'in'; me: Me }
   | { status: 'error'; error: string }
 
+/* ---------- páginas públicas ---------- */
+
+const LEGAL_PAGES = {
+  '/privacidad': { title: 'Política de Privacidad', Content: PrivacyPolicy },
+  '/terminos': { title: 'Condiciones del Servicio', Content: TermsOfService },
+} as const
+
+type LegalPath = keyof typeof LEGAL_PAGES
+
+function legalPath(pathname: string): LegalPath | null {
+  const path = pathname.replace(/\/+$/, '').toLowerCase()
+  return path in LEGAL_PAGES ? (path as LegalPath) : null
+}
+
+function LegalFooterLinks() {
+  return (
+    <nav className="legal-links" aria-label="Información legal">
+      <a href="/privacidad">Política de Privacidad</a>
+      <span aria-hidden="true">·</span>
+      <a href="/terminos">Condiciones del Servicio</a>
+    </nav>
+  )
+}
+
+/** Política de privacidad y condiciones: se ven sin iniciar sesión. */
+function LegalPage({ path }: { path: LegalPath }) {
+  const [theme, toggleTheme] = useTheme()
+  const { title, Content } = LEGAL_PAGES[path]
+
+  useEffect(() => {
+    document.title = `${title} · Bookeep`
+  }, [title])
+
+  return (
+    <div className="legal">
+      <header className="legal-top">
+        <a href="/" className="legal-home" aria-label="Ir al inicio">
+          <Brand />
+        </a>
+        <ThemeToggle theme={theme} onToggle={toggleTheme} />
+      </header>
+      <main className="legal-doc">
+        <a href="/" className="legal-back">
+          <ArrowLeftIcon weight="bold" />
+          Volver al inicio
+        </a>
+        <article>
+          <Content />
+        </article>
+      </main>
+      <footer className="legal-foot">
+        <LegalFooterLinks />
+        <span>Bookeep · Hecho en El Salvador</span>
+      </footer>
+    </div>
+  )
+}
+
 export default function App() {
+  const path = legalPath(window.location.pathname)
+  return path ? <LegalPage path={path} /> : <Main />
+}
+
+function Main() {
   const [auth, setAuth] = useState<Auth>({ status: 'loading' })
   const [attempt, setAttempt] = useState(0)
   const [theme, toggleTheme] = useTheme()
@@ -789,7 +853,10 @@ export default function App() {
             </p>
           </div>
         )}
-        <span className="auth-foot">Bookeep · Hecho en El Salvador</span>
+        <footer className="auth-foot">
+          <LegalFooterLinks />
+          <span>Bookeep · Hecho en El Salvador</span>
+        </footer>
       </div>
     </div>
   )
