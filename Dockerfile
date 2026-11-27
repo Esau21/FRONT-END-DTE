@@ -18,7 +18,7 @@ COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=build /app/dist /usr/share/nginx/html
 
 # URL de la API de Go, vista desde dentro del contenedor
-ARG API_TARGET
-ENV API_TARGET=${API_TARGET}
+ENV API_TARGET=""
+ENV NGINX_ENVSUBST_FILTER="^API_TARGET$"
 
 EXPOSE 80
