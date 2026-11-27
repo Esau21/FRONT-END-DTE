@@ -7,7 +7,7 @@
 const APP_NAME = 'Bookeep'
 const APP_URL = 'https://dte-front-925658751247.us-east4.run.app'
 /** Correo de contacto para temas de privacidad y soporte. */
-const CONTACT_EMAIL = 'contacto@tu-dominio.com'
+const CONTACT_EMAIL = 'tariqventura@gmail.com'
 const UPDATED = '27 de noviembre de 2026'
 
 function Contact() {
